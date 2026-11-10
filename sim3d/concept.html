@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Catena Concept Viewer</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: a workbench. Wide stage on the left, a narrow instrument panel on the right; stacks on phones. */
+:root {
+  --bg: #eef1ef; --panel: #f9fbfa; --fg: #18211f; --muted: #5a6864; --line: #cdd7d2;
+  --accent: #0e7a63; --accent-fg: #ffffff; --coral: #c9532d; --btn: #ffffff; --btn-hover: #e6efeb;
+  --scene: #dde4e0; --table: #f3efe4; --table-edge: #b6ae9c; --base: #39433f; --wheel: #1f2523;
+  --ringc: #14876f; --deck: #3cbfa0; --steel: #a9b3b4; --ball: #ee8420; --block: #b98652; --zone: #0e7a63;
+  --led-head: #e2552c; --led-tail: #e8a41c; --led-link: #1fb893; --led-free: #8b9793;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1514; --panel: #151d1b; --fg: #e4ece9; --muted: #93a39e; --line: #2a3632;
+  --accent: #3fc3a3; --accent-fg: #06201a; --coral: #f0825c; --btn: #1b2523; --btn-hover: #24312e;
+  --scene: #0b100f; --table: #2b302c; --table-edge: #171b19; --base: #6f7d79; --wheel: #101413;
+  --ringc: #1b9a80; --deck: #46cbab; --steel: #b9c2c3; --ball: #f59a3c; --block: #c79866; --zone: #3fc3a3;
+  --led-head: #ff6f45; --led-tail: #f6b93a; --led-link: #35d6ae; --led-free: #7d8a86;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f1514; --panel: #151d1b; --fg: #e4ece9; --muted: #93a39e; --line: #2a3632;
+  --accent: #3fc3a3; --accent-fg: #06201a; --coral: #f0825c; --btn: #1b2523; --btn-hover: #24312e;
+  --scene: #0b100f; --table: #2b302c; --table-edge: #171b19; --base: #6f7d79; --wheel: #101413;
+  --ringc: #1b9a80; --deck: #46cbab; --steel: #b9c2c3; --ball: #f59a3c; --block: #c79866; --zone: #3fc3a3;
+  --led-head: #ff6f45; --led-tail: #f6b93a; --led-link: #35d6ae; --led-free: #7d8a86;
+  color-scheme: dark }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-block: 20px 28px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 24px; line-height: 1.15; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); }
+.bench { display: grid; grid-template-columns: minmax(0, 1fr) 296px; gap: 16px; align-items: start; }
+.stage { position: relative; background: var(--scene); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; aspect-ratio: 16 / 10; max-width: 100%; min-width: 0; }
+.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.stage canvas:active { cursor: grabbing; }
+.phase { position: absolute; left: 12px; top: 10px; right: 12px; font-family: var(--font-display); font-weight: 500; font-size: 15px; pointer-events: none; text-wrap: balance; }
+.readout { position: absolute; left: 12px; bottom: 10px; right: 12px; display: flex; flex-wrap: wrap; gap: 4px 16px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none; }
+.readout b { color: var(--fg); font-weight: 500; }
+.fallback { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.group { display: flex; flex-direction: column; gap: 8px; }
+.label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; gap: 6px; }
+button { font: inherit; font-weight: 500; color: var(--fg); background: var(--btn); border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px; cursor: pointer; }
+button:hover { background: var(--btn-hover); }
+button:focus-visible, input:focus-visible, .pad:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.demos button { flex: 1 1 128px; text-align: left; }
+.pull { border-color: var(--coral); color: var(--coral); }
+.padrow { display: flex; gap: 10px; align-items: flex-start; }
+.pad { width: 120px; height: 120px; flex: none; border: 1px dashed var(--line); border-radius: 7px; background: var(--btn); touch-action: none; cursor: crosshair; }
+.padrow p, .note { margin: 0; font-size: 13px; color: var(--muted); }
+.check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.legend { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; font-size: 13px; color: var(--muted); }
+.legend span { display: flex; align-items: center; gap: 6px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.note { border-top: 1px solid var(--line); padding-top: 12px; }
+@media (max-width: 860px) { .bench { grid-template-columns: minmax(0, 1fr); } .stage { aspect-ratio: 4 / 3; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Catena concept viewer</h1>
+    <p>Twelve 80 mm robots, one chain. Drag to orbit, scroll or pinch to zoom.</p>
+  </header>
+  <div class="bench">
+    <div class="stage" id="stage">
+      <canvas id="view" aria-label="3D view of the robot swarm on a table"></canvas>
+      <div class="phase" id="phase"></div>
+      <div class="readout" id="readout"></div>
+      <div class="fallback" id="fallback" hidden>This viewer needs WebGL and an internet connection to load its 3D library. Reload once you are online.</div>
+    </div>
+    <div class="panel">
+      <div class="group">
+        <div class="label">Demos</div>
+        <div class="row demos">
+          <button id="d-assemble" data-demo="assemble">Form a chain</button>
+          <button id="d-lasso" data-demo="lasso">Lasso the ball</button>
+          <button id="d-sweep" data-demo="sweep">Sweep blocks</button>
+          <button id="d-bridge" data-demo="bridge">Cross the gap</button>
+        </div>
+      </div>
+      <div class="group">
+        <div class="label">While it runs</div>
+        <div class="row">
+          <button id="pull" class="pull">Pull one out</button>
+          <button id="pause" aria-pressed="false">Pause</button>
+        </div>
+        <div class="row" role="group" aria-label="Speed">
+          <button id="s1" data-speed="1" aria-pressed="false">1x</button>
+          <button id="s2" data-speed="2" aria-pressed="true">2x</button>
+          <button id="s4" data-speed="4" aria-pressed="false">4x</button>
+          <button id="s8" data-speed="8" aria-pressed="false">8x</button>
+        </div>
+      </div>
+      <div class="group">
+        <div class="label">Shape</div>
+        <div class="row">
+          <button id="sh-line" data-shape="line">Line</button>
+          <button id="sh-ring" data-shape="ring">Ring</button>
+          <button id="sh-scoop" data-shape="scoop">Scoop</button>
+        </div>
+        <div class="padrow">
+          <canvas class="pad" id="pad" width="240" height="240" tabindex="0" aria-label="Draw one stroke here to set the chain's shape"></canvas>
+          <p>Or draw one stroke. End where you started to make a closed shape.</p>
+        </div>
+      </div>
+      <div class="group">
+        <div class="label">View</div>
+        <label class="check"><input type="checkbox" id="xray" checked> See-through top plates</label>
+        <div class="legend" aria-label="Status light colours">
+          <span><i class="dot" style="background:var(--led-head)"></i>Head, tongue free</span>
+          <span><i class="dot" style="background:var(--led-link)"></i>Linked</span>
+          <span><i class="dot" style="background:var(--led-tail)"></i>Tail, hub free</span>
+          <span><i class="dot" style="background:var(--led-free)"></i>Not linked</span>
+        </div>
+      </div>
+      <p class="note">This is a concept viewer. Robots follow simplified rules on ideal positions, with no physics, sensor noise or wheel slip. The simulator built in milestones M1 to M4 runs the real control code.</p>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+function createSim(opts) {
+  const P = Object.assign({ n: 12, pitch: 80, baseR: 36, ringR: 39, range: 260, join: 84, playDeg: 0.9, seed: 7 }, opts || {});
+  let seed = P.seed >>> 0;
+  const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+  const TAB = {
+    table: [{ x0: -700, x1: 700, z0: -450, z1: 450 }],
+    bridge: [{ x0: -1000, x1: -40, z0: -250, z1: 250 }, { x0: 40, x1: 1000, z0: -250, z1: 250 }]
+  };
+  const S = { P, t: 0, robots: [], ball: null, blocks: [], home: null, corner: null, world: 'table', tables: TAB.table,
+    mode: 'idle', phase: '', stroke: null, shapeName: 'line', twist: { x: 0, z: 0, w: 0 }, droop: 0, shapeErr: 0, cs: [], done: false };
+
+  const STROKES = {
+    line: [[0, 0], [1, 0]],
+    ring: Array.from({ length: 49 }, (_, i) => [Math.cos(i / 48 * 2 * Math.PI), Math.sin(i / 48 * 2 * Math.PI)]),
+    scoop: (() => {
+      const p = [[-120, -250], [-120, 0]];
+      for (let i = 1; i < 24; i++) { const a = Math.PI - i / 24 * Math.PI; p.push([120 * Math.cos(a), 120 * Math.sin(a)]); }
+      p.push([120, 0], [120, -250]);
+      return p;
+    })()
+  };
+  let shapeCache = {};
+
+  function setStroke(pts, name) { S.stroke = pts; S.shapeName = name || 'drawn'; shapeCache = {}; }
+
+  function shapeFor(n) {
+    if (!S.stroke || n < 3) return null;
+    if (shapeCache[n]) return shapeCache[n];
+    const pts = S.stroke.map(p => [p[0], p[1]]);
+    let len = 0; const cum = [0];
+    for (let i = 1; i < pts.length; i++) { len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); cum.push(len); }
+    const closeGap = Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]);
+    const closed = pts.length > 3 && closeGap < 0.15 * len;
+    if (closed && closeGap > 1e-9) { pts.push([pts[0][0], pts[0][1]]); len += closeGap; cum.push(len); }
+    const at = s => {
+      let i = 1; while (i < cum.length - 1 && cum[i] < s) i++;
+      const f = (s - cum[i - 1]) / Math.max(1e-9, cum[i] - cum[i - 1]);
+      return [pts[i - 1][0] + f * (pts[i][0] - pts[i - 1][0]), pts[i - 1][1] + f * (pts[i][1] - pts[i - 1][1])];
+    };
+    const q = [];
+    for (let k = 0; k < n; k++) q.push(at(closed ? k / n * len : k / (n - 1) * len));
+    const kappa = new Array(n).fill(0), lim = 100 * Math.PI / 180;
+    for (let k = 0; k < n; k++) {
+      if (!closed && (k === 0 || k === n - 1)) continue;
+      const a = q[(k - 1 + n) % n], b = q[k], c = q[(k + 1) % n];
+      const ux = b[0] - a[0], uz = b[1] - a[1], vx = c[0] - b[0], vz = c[1] - b[1];
+      kappa[k] = Math.max(-lim, Math.min(lim, Math.atan2(ux * vz - uz * vx, ux * vx + uz * vz)));
+    }
+    return (shapeCache[n] = { closed, kappa });
+  }
+
+  function mk(id, x, z) {
+    return { id, x, z, y: 0, th: rnd() * 6.283, ring: 0, ahead: null, behind: null, vx: 0, vz: 0, wth: rnd() * 6.283,
+      removed: false, lift: 0, seek: null, state: 'free', sp: 0 };
+  }
+  function link(h, t) { h.ahead = t.id; t.behind = h.id; h.seek = null; }
+  function unlink(r) { if (r.ahead != null) { S.robots[r.ahead].behind = null; r.ahead = null; } }
+
+  function scatter() {
+    S.robots = [];
+    let tries = 0;
+    while (S.robots.length < P.n && tries++ < 5000) {
+      const x = -420 + rnd() * 840, z = -280 + rnd() * 560;
+      if (S.robots.every(r => Math.hypot(r.x - x, r.z - z) > 105)) S.robots.push(mk(S.robots.length, x, z));
+    }
+  }
+  function placeLine(x0, z0, dx, dz) {
+    S.robots = [];
+    for (let k = 0; k < P.n; k++) {
+      const r = mk(k, x0 - k * P.pitch * dx, z0 - k * P.pitch * dz);
+      r.th = r.ring = Math.atan2(dz, dx);
+      S.robots.push(r);
+      if (k > 0) link(r, S.robots[k - 1]);
+    }
+  }
+  function clearScene(world) {
+    S.world = world; S.tables = TAB[world]; S.t = 0; S.ball = null; S.blocks = []; S.home = null; S.corner = null;
+    S.twist = { x: 0, z: 0, w: 0 }; S.phase = ''; S.done = false; S.droop = 0;
+  }
+
+  function start(demo) {
+    if (demo === 'assemble') {
+      clearScene('table'); scatter(); S.mode = 'assemble';
+      if (!S.stroke) setStroke(STROKES.line, 'line');
+    } else if (demo === 'lasso') {
+      clearScene('table'); placeLine(240, 230, 1, 0); setStroke(STROKES.line, 'line');
+      S.ball = { x: 440, z: 10, r: 20 }; S.home = { x: -300, z: -150 }; S.mode = 'lasso'; S.phase = 'approach';
+    } else if (demo === 'sweep') {
+      clearScene('table'); setStroke(STROKES.scoop, 'scoop');
+      S.corner = { x: 700, z: -450 };
+      const c = { x: -250, z: 80 }, dl = Math.hypot(S.corner.x - c.x, S.corner.z - c.z);
+      const dir = { x: (S.corner.x - c.x) / dl, z: (S.corner.z - c.z) / dl }, per = { x: -dir.z, z: dir.x };
+      S.dir = dir; S.robots = [];
+      for (let k = 0; k < P.n; k++) {
+        const a = -Math.PI / 2 + (k + 0.5) / P.n * Math.PI, r = mk(k, c.x + 280 * (Math.sin(a) * per.x - Math.cos(a) * dir.x), c.z + 280 * (Math.sin(a) * per.z - Math.cos(a) * dir.z));
+        S.robots.push(r); if (k > 0) link(r, S.robots[k - 1]);
+      }
+      const m = S.robots, u = [m[1].x - m[0].x, m[1].z - m[0].z], w = [m[2].x - m[1].x, m[2].z - m[1].z];
+      if ((u[0] * w[1] - u[1] * w[0]) * shapeFor(P.n).kappa[Math.floor(P.n / 2)] < 0) setStroke(STROKES.scoop.slice().reverse(), 'scoop');
+      for (const r of m) { r.th = Math.atan2(dir.z, dir.x); if (r.ahead != null) r.ring = Math.atan2(m[r.ahead].z - r.z, m[r.ahead].x - r.x); else r.ring = r.th; }
+      for (let i = 0; i < 8; i++) { const a = 420 + (rnd() - 0.5) * 140, b = (rnd() - 0.5) * 120; S.blocks.push({ x: c.x + dir.x * a + per.x * b, z: c.z + dir.z * a + per.z * b, r: 12 }); }
+      S.mode = 'sweep'; S.phase = 'form'; S.pt = 0;
+    } else if (demo === 'bridge') {
+      clearScene('bridge'); placeLine(-78, 0, 1, 0); setStroke(STROKES.line, 'line');
+      S.mode = 'bridge'; S.phase = 'cross';
+    }
+  }
+
+  function chains() {
+    const seen = new Set(), out = [];
+    for (const r of S.robots) {
+      if (r.removed || seen.has(r.id)) continue;
+      let h = r, g = 0, ring = false;
+      while (h.ahead != null && g++ < 64) { h = S.robots[h.ahead]; if (h === r) { ring = true; break; } }
+      let m = [];
+      if (ring) {
+        let x = r; do { m.push(x); x = S.robots[x.behind]; } while (x !== r && m.length < 64);
+        let lo = 0; m.forEach((q, i) => { if (q.id < m[lo].id) lo = i; });
+        m = m.slice(lo).concat(m.slice(0, lo));
+      } else { let x = h; while (x) { m.push(x); x = x.behind != null ? S.robots[x.behind] : null; } }
+      m.forEach(q => seen.add(q.id));
+      out.push({ m, ring, size: m.length, minId: Math.min(...m.map(q => q.id)) });
+    }
+    out.sort((a, b) => b.size - a.size || a.minId - b.minId);
+    return out;
+  }
+
+  const onTable = (x, z, inset) => S.tables.some(t => x >= t.x0 + inset && x <= t.x1 - inset && z >= t.z0 + inset && z <= t.z1 - inset);
+  function go(r, tx, tz, speed) {
+    const dx = tx - r.x, dz = tz - r.z, d = Math.hypot(dx, dz) || 1;
+    r.vx += dx / d * speed; r.vz += dz / d * speed; return d;
+  }
+  function wander(r, speed, dt) {
+    r.wth += (rnd() - 0.5) * 2.4 * dt * 6;
+    const nx = r.x + Math.cos(r.wth) * 90, nz = r.z + Math.sin(r.wth) * 90;
+    if (!onTable(nx, nz, 45)) r.wth = Math.atan2(-r.z, -r.x) + (rnd() - 0.5);
+    r.vx += Math.cos(r.wth) * speed; r.vz += Math.sin(r.wth) * speed;
+  }
+  function follow(c, speed) {
+    for (let k = 1; k < c.m.length; k++) {
+      const r = c.m[k], a = c.m[k - 1];
+      if (Math.hypot(a.x - r.x, a.z - r.z) > P.pitch - 2) go(r, a.x, a.z, speed);
+    }
+  }
+  function centroid(m) { let x = 0, z = 0; for (const r of m) { x += r.x; z += r.z; } return { x: x / m.length, z: z / m.length }; }
+
+  function holdShape(c, gain, active) {
+    const sh = shapeFor(c.size); if (!sh) return;
+    const n = c.size, m = c.m, L = P.pitch;
+    if (!sh.closed && c.ring) { unlink(m[0]); return; }
+    const e = new Array(n).fill(0), on = new Array(n).fill(false);
+    let err = 0, cnt = 0;
+    for (let k = 0; k < n; k++) {
+      if (!c.ring && (k === 0 || k === n - 1)) continue;
+      const a = m[(k - 1 + n) % n], r = m[k], b = m[(k + 1) % n];
+      const ux = r.x - a.x, uz = r.z - a.z, wx = b.x - r.x, wz = b.z - r.z;
+      const th = Math.atan2(ux * wz - uz * wx, ux * wx + uz * wz);
+      err += Math.abs(th - sh.kappa[k]); cnt++;
+      if (active && !active(r)) continue;
+      e[k] = th - sh.kappa[k]; on[k] = true;
+    }
+    S.shapeErr = cnt ? err / cnt * 180 / Math.PI : 0;
+    for (let j = 0; j < n; j++) {
+      const r = m[j], hasA = c.ring || j > 0, hasB = c.ring || j < n - 1;
+      const a = hasA ? m[(j - 1 + n) % n] : null, b = hasB ? m[(j + 1) % n] : null;
+      if (active && !active(r) && a) { if (Math.hypot(a.x - r.x, a.z - r.z) > L - 2) go(r, a.x, a.z, 64); continue; }
+      let gx = 0, gz = 0;
+      if (a) { const ux = r.x - a.x, uz = r.z - a.z, d2 = ux * ux + uz * uz || 1, ea = e[(j - 1 + n) % n] - e[j]; gx += ea * -uz / d2; gz += ea * ux / d2; }
+      if (b) { const wx = b.x - r.x, wz = b.z - r.z, d2 = wx * wx + wz * wz || 1, eb = e[(j + 1) % n] - e[j]; gx += eb * -wz / d2; gz += eb * wx / d2; }
+      let vx = -gain * L * L * gx, vz = -gain * L * L * gz; const v = Math.hypot(vx, vz);
+      if (v > 90) { vx *= 90 / v; vz *= 90 / v; }
+      r.vx += vx; r.vz += vz;
+    }
+    if (sh.closed && !c.ring) {
+      const h = m[0], t = m[n - 1], d = Math.hypot(h.x - t.x, h.z - t.z);
+      if (d < 1.9 * L) { go(h, t.x, t.z, 40); if (d < P.join) link(h, t); }
+    }
+  }
+
+  function edgeShift(c) {
+    const t = S.tables[0], g = centroid(c.m); let px = 0, pz = 0, tq = 0;
+    for (const r of c.m) {
+      const e = [[r.x - t.x0, 1, 0], [t.x1 - r.x, -1, 0], [r.z - t.z0, 0, 1], [t.z1 - r.z, 0, -1]];
+      for (const q of e) if (q[0] < 95) { const f = (95 - q[0]) / 95; px += q[1] * f; pz += q[2] * f; tq += (r.x - g.x) * q[2] * f - (r.z - g.z) * q[1] * f; }
+    }
+    const p = Math.hypot(px, pz); if (p < 1e-6) return;
+    const v = Math.min(70, 45 * p); applyTwist(c, { x: px / p * v, z: pz / p * v, w: Math.max(-0.35, Math.min(0.35, tq * 0.004)) });
+  }
+
+  function applyTwist(c, tw) {
+    const g = centroid(c.m);
+    for (const r of c.m) { r.vx += tw.x - tw.w * (r.z - g.z); r.vz += tw.z + tw.w * (r.x - g.x); }
+  }
+
+  function remove(id) {
+    const cs = chains(); if (!cs.length) return null;
+    let r = id != null ? S.robots[id] : null;
+    if (!r) { const c = cs[0]; if (c.size < 4) return null; const k = c.ring ? Math.floor(rnd() * c.size) : 1 + Math.floor(rnd() * (c.size - 2)); r = c.m[k]; }
+    if (r.removed) return null;
+    const a = r.ahead != null ? S.robots[r.ahead] : null, b = r.behind != null ? S.robots[r.behind] : null;
+    if (a) a.behind = null; if (b) b.ahead = null;
+    r.ahead = r.behind = null; r.removed = true;
+    if (a && b) b.seek = a.id;
+    return r.id;
+  }
+
+  function step(dt) {
+    S.t += dt;
+    const act = S.robots.filter(r => !r.removed);
+    for (const r of S.robots) { r.vx = 0; r.vz = 0; r.px = r.x; r.pz = r.z; if (r.removed) r.lift = Math.min(1, r.lift + dt / 1.2); }
+    let cs = chains(); const one = cs.length === 1, main = cs[0];
+    if (!main) return;
+
+    for (let i = 0; i < cs.length; i++) {
+      const c = cs[i], h = c.m[0];
+      if (c.ring || (i === 0 && h.seek == null)) continue;
+      let t = null;
+      if (h.seek != null) { const q = S.robots[h.seek]; if (!q.removed && q.behind == null && !c.m.includes(q)) t = q; else h.seek = null; }
+      if (!t) {
+        let best = P.range;
+        for (let j = 0; j < i; j++) { const q = cs[j].m[cs[j].size - 1]; if (cs[j].ring) continue; const d = Math.hypot(q.x - h.x, q.z - h.z); if (d < best) { best = d; t = q; } }
+      }
+      if (t) {
+        const d = go(h, t.x, t.z, 80); follow(c, 72);
+        h.stuck = h.sp < 15 ? (h.stuck || 0) + dt : 0;
+        if (h.stuck > 1 && !(h.slide > 0)) { h.slide = 2.5; h.side = rnd() < 0.5 ? 1 : -1; h.stuck = 0; }
+        if (h.slide > 0) { h.slide -= dt; const dx = t.x - h.x, dz = t.z - h.z, n = Math.hypot(dx, dz) || 1; h.vx += -dz / n * 90 * h.side - dx / n * 40; h.vz += dx / n * 90 * h.side - dz / n * 40; }
+        if (d < P.join) link(h, t);
+      }
+      else { wander(h, c.size > 1 ? 45 : 60, dt); follow(c, 40); }
+    }
+    if (S.mode === 'assemble') {
+      if (!one && main.size === 1) wander(main.m[0], 60, dt);
+      if (one) { S.mode = 'shape'; }
+    }
+
+    if (one) {
+      const h = main.m[0];
+      if (S.mode === 'shape') { holdShape(main, 5); applyTwist(main, S.twist); edgeShift(main); }
+      else if (S.mode === 'lasso') {
+        const R = P.pitch / (2 * Math.sin(Math.PI / main.size)), b = S.ball;
+        if (S.phase === 'approach') {
+          const d = Math.hypot(b.x - h.x, b.z - h.z);
+          if (d > R + 4) { go(h, b.x, b.z, 70); follow(main, 64); }
+          else { S.phase = 'orbit'; S.c0 = { x: b.x, z: b.z }; setStroke(STROKES.ring.map(p => [p[0], -p[1]]), 'ring'); }
+        } else if (S.phase === 'orbit') {
+          if (main.ring) { S.phase = 'settle'; S.pt = 0; }
+          else {
+            const rx = h.x - S.c0.x, rz = h.z - S.c0.z, d = Math.hypot(rx, rz) || 1;
+            h.vx += -rz / d * 62 + rx / d * (R - d) * 2; h.vz += rx / d * 62 + rz / d * (R - d) * 2;
+            holdShape(main, 3, r => Math.hypot(r.x - S.c0.x, r.z - S.c0.z) < R + 30);
+            const t = main.m[main.size - 1]; if (Math.hypot(t.x - h.x, t.z - h.z) > 1.9 * P.pitch && Math.hypot(t.x - S.c0.x, t.z - S.c0.z) > R + 30) go(t, main.m[main.size - 2].x, main.m[main.size - 2].z, 64);
+          }
+        } else if (S.phase === 'settle') {
+          holdShape(main, 5); edgeShift(main); S.pt += dt; if (S.pt > 2) S.phase = 'carry';
+        } else if (S.phase === 'carry') {
+          holdShape(main, 5);
+          if (!main.ring) edgeShift(main);
+          else {
+            const g = centroid(main.m), dx = S.home.x - g.x, dz = S.home.z - g.z, d = Math.hypot(dx, dz);
+            if (d > 12) applyTwist(main, { x: dx / d * 50, z: dz / d * 50, w: 0 }); else { S.phase = 'done'; S.done = true; }
+          }
+        } else { holdShape(main, 5); edgeShift(main); }
+      } else if (S.mode === 'sweep') {
+        holdShape(main, 5); if (S.phase !== 'push' && S.phase !== 'done') edgeShift(main);
+        const m = main.m, n = main.size, g = centroid(m);
+        const dir = (() => { const dx = S.corner.x - g.x, dz = S.corner.z - g.z, d = Math.hypot(dx, dz) || 1; return { x: dx / d, z: dz / d }; })();
+        const mid = Math.floor(n / 2), ox = (m[0].x + m[n - 1].x) / 2 - (m[mid - 1].x + m[mid].x) / 2, oz = (m[0].z + m[n - 1].z) / 2 - (m[mid - 1].z + m[mid].z) / 2;
+        const ang = Math.atan2(ox * dir.z - oz * dir.x, ox * dir.x + oz * dir.z);
+        S.pt += dt;
+        if (S.phase === 'form') { if (S.pt > 2 && S.shapeErr < 2 || S.pt > 30) S.phase = 'push'; }
+        else if (S.phase === 'push') {
+          const t = S.tables[0], nz = m.some(r => r.z < t.z0 + 58), nx = m.some(r => r.x > t.x1 - 58);
+          if (nz && nx) { S.phase = 'done'; S.done = true; }
+          else if (nz) applyTwist(main, { x: 45, z: 4, w: 0 });
+          else if (nx) applyTwist(main, { x: -4, z: -45, w: 0 });
+          else applyTwist(main, { x: dir.x * 45, z: dir.z * 45, w: Math.max(-0.3, Math.min(0.3, ang)) });
+        }
+      } else if (S.mode === 'bridge') {
+        holdShape(main, 5);
+        const tailX = Math.min(...main.m.map(r => r.x));
+        if (tailX < 60) applyTwist(main, { x: 42, z: 0, w: 0 }); else { S.phase = 'done'; S.done = true; }
+        for (const r of main.m) r.vz += -r.z * 1.5;
+      }
+    }
+
+    for (const r of act) {
+      const v = Math.hypot(r.vx, r.vz); if (v > 110) { r.vx *= 110 / v; r.vz *= 110 / v; }
+      r.x += r.vx * dt; r.z += r.vz * dt;
+    }
+    const L = P.pitch, objs = (S.ball ? [S.ball] : []).concat(S.blocks);
+    for (let it = 0; it < 12; it++) {
+      for (const r of act) if (r.ahead != null) {
+        const a = S.robots[r.ahead], dx = a.x - r.x, dz = a.z - r.z, d = Math.hypot(dx, dz) || 1, f = (d - L) / d * 0.5;
+        r.x += dx * f; r.z += dz * f; a.x -= dx * f; a.z -= dz * f;
+      }
+      for (let i = 0; i < act.length; i++) for (let j = i + 1; j < act.length; j++) {
+        const p = act[i], q = act[j]; if (p.ahead === q.id || q.ahead === p.id) continue;
+        const dx = q.x - p.x, dz = q.z - p.z, d = Math.hypot(dx, dz) || 1;
+        if (d < 79.5) { const f = (79.5 - d) / d * 0.5; p.x -= dx * f; p.z -= dz * f; q.x += dx * f; q.z += dz * f; }
+      }
+      for (const o of objs) {
+        for (const r of act) { const dx = o.x - r.x, dz = o.z - r.z, d = Math.hypot(dx, dz) || 1, min = P.baseR + o.r; if (d < min) { o.x += dx / d * (min - d); o.z += dz / d * (min - d); } }
+        for (const u of objs) if (u !== o) { const dx = o.x - u.x, dz = o.z - u.z, d = Math.hypot(dx, dz) || 1, min = o.r + u.r; if (d < min) { o.x += dx / d * (min - d) / 2; o.z += dz / d * (min - d) / 2; u.x -= dx / d * (min - d) / 2; u.z -= dz / d * (min - d) / 2; } }
+        const t = S.tables[0]; o.x = Math.max(t.x0 + o.r, Math.min(t.x1 - o.r, o.x)); o.z = Math.max(t.z0 + o.r, Math.min(t.z1 - o.r, o.z));
+      }
+      if (S.world === 'table') { const t = S.tables[0]; for (const r of act) { r.x = Math.max(t.x0 + 42, Math.min(t.x1 - 42, r.x)); r.z = Math.max(t.z0 + 42, Math.min(t.z1 - 42, r.z)); } }
+      else for (const r of act) { r.x = Math.max(-958, Math.min(958, r.x)); r.z = Math.max(-208, Math.min(208, r.z)); }
+    }
+
+    cs = chains(); S.cs = cs;
+    for (const r of act) {
+      const dx = r.x - r.px, dz = r.z - r.pz, sp = Math.hypot(dx, dz) / dt; r.sp = sp;
+      if (sp > 6) { let e = Math.atan2(dz, dx) - r.th; e = Math.atan2(Math.sin(e), Math.cos(e)); r.th += Math.max(-5 * dt, Math.min(5 * dt, e)); }
+      let tr = r.th; if (r.ahead != null) { const a = S.robots[r.ahead]; tr = Math.atan2(a.z - r.z, a.x - r.x); }
+      let e = tr - r.ring; e = Math.atan2(Math.sin(e), Math.cos(e)); r.ring += r.ahead != null ? e : Math.max(-3 * dt, Math.min(3 * dt, e));
+      r.state = r.ahead == null && r.behind == null ? (r.sp > 6 ? 'free' : 'free') : r.ahead == null ? 'head' : r.behind == null ? 'tail' : 'linked';
+      r.y = 0;
+    }
+    S.droop = 0;
+    if (S.world === 'bridge' && cs[0] && !cs[0].ring) {
+      const m = cs[0].m, sup = r => Math.abs(r.x) >= 40, play = P.playDeg * Math.PI / 180;
+      let k = m.findIndex(sup);
+      if (k > 0) { let ang = 0, y = 0; for (let i = k - 1; i >= 0; i--) { ang += play; y -= L * Math.sin(ang); m[i].y = y; } S.droop = -m[0].y; }
+    }
+  }
+
+  function stats() {
+    const act = S.robots.filter(r => !r.removed);
+    return { robots: act.length, linked: act.filter(r => r.ahead != null || r.behind != null).length, chains: S.cs.length,
+      ring: !!(S.cs[0] && S.cs[0].ring), shapeErr: S.shapeErr, droop: S.droop };
+  }
+  return { S, P, STROKES, start, step, setStroke, remove, stats, chains, shapeFor };
+}
+
+</script>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const canvas = $('view'), stage = $('stage');
+  if (!window.THREE) { $('fallback').hidden = false; return; }
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true }); } catch (e) { $('fallback').hidden = false; return; }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+  const sim = createSim({ seed: 11 });
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(38, 1.6, 10, 12000);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8e9a96, 0.62));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.42); sun.position.set(-600, 1400, 900); scene.add(sun);
+
+  const tok = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const M = {};
+  const mat = (key, opt) => (M[key] = new THREE.MeshLambertMaterial(Object.assign({}, opt)));
+  mat('--table'); mat('--table-edge'); mat('--base'); mat('--wheel'); mat('--ringc'); mat('--steel'); mat('--coral');
+  mat('--deck', { transparent: true, opacity: 0.32 }); mat('--ball'); mat('--block');
+  mat('--zone', { transparent: true, opacity: 0.22, side: THREE.DoubleSide });
+  const LED = {}; ['head', 'tail', 'link', 'free'].forEach(k => (LED[k] = new THREE.MeshBasicMaterial()));
+  function applyTheme() {
+    for (const k in M) M[k].color.set(tok(k));
+    for (const k in LED) LED[k].color.set(tok('--led-' + k));
+    renderer.setClearColor(new THREE.Color(tok('--scene')), 1);
+    drawPad();
+  }
+
+  const G = {
+    body: new THREE.CylinderGeometry(36, 36, 24, 40), wheel: new THREE.CylinderGeometry(15, 15, 6, 24).rotateX(Math.PI / 2),
+    nose: new THREE.BoxGeometry(8, 8, 16), plate: new THREE.CylinderGeometry(39, 39, 3, 48), hub: new THREE.CylinderGeometry(14, 14, 5.4, 32),
+    root: new THREE.BoxGeometry(25, 5.4, 22), tongue: new THREE.BoxGeometry(16, 5, 22), tip: new THREE.CylinderGeometry(11, 11, 5, 24),
+    magnet: new THREE.CylinderGeometry(3.2, 3.2, 5.4, 16), led: new THREE.CylinderGeometry(5, 5, 1.6, 16)
+  };
+  const mesh = (g, m, x, y, z) => { const o = new THREE.Mesh(g, m); o.position.set(x || 0, y || 0, z || 0); return o; };
+  function buildRobot() {
+    const g = new THREE.Group(), base = new THREE.Group(), ring = new THREE.Group();
+    base.add(mesh(G.body, M['--base'], 0, 15, 0), mesh(G.wheel, M['--wheel'], 0, 15, 29), mesh(G.wheel, M['--wheel'], 0, 15, -29), mesh(G.nose, M['--steel'], 31, 24, 0));
+    const led = mesh(G.led, LED.free, 0, 43.2, 0);
+    ring.add(mesh(G.plate, M['--ringc'], 0, 32.5, 0), mesh(G.hub, M['--steel'], 0, 36.7, 0), mesh(G.root, M['--ringc'], 26.5, 36.7, 0),
+      mesh(G.tongue, M['--ringc'], 47, 36.7, 0), mesh(G.tip, M['--ringc'], 55, 36.7, 0), mesh(G.magnet, M['--coral'], 62, 36.7, 0),
+      mesh(G.plate, M['--deck'], 0, 40.9, 0), led);
+    g.add(base, ring); g.userData = { base, ring, led, deck: ring.children[6] };
+    return g;
+  }
+  const bots = []; for (let i = 0; i < 12; i++) { const b = buildRobot(); bots.push(b); scene.add(b); }
+  const world = new THREE.Group(); scene.add(world);
+  let ballMesh = null, blockMeshes = [];
+  function buildWorld() {
+    while (world.children.length) world.remove(world.children[0]);
+    for (const t of sim.S.tables) {
+      const w = t.x1 - t.x0, d = t.z1 - t.z0, cx = (t.x0 + t.x1) / 2, cz = (t.z0 + t.z1) / 2;
+      world.add(mesh(new THREE.BoxGeometry(w, 18, d), M['--table'], cx, -9, cz), mesh(new THREE.BoxGeometry(w - 60, 40, d - 60), M['--table-edge'], cx, -38, cz));
+    }
+    ballMesh = null; blockMeshes = [];
+    if (sim.S.ball) { ballMesh = mesh(new THREE.SphereGeometry(20, 28, 20), M['--ball']); world.add(ballMesh); }
+    for (const b of sim.S.blocks) { const o = mesh(new THREE.BoxGeometry(22, 22, 22), M['--block']); o.rotation.y = b.x * 0.37; blockMeshes.push(o); world.add(o); }
+    if (sim.S.home) { const o = mesh(new THREE.RingGeometry(168, 180, 64), M['--zone'], sim.S.home.x, 0.8, sim.S.home.z); o.rotation.x = -Math.PI / 2; world.add(o); }
+    if (sim.S.corner) { const o = mesh(new THREE.PlaneGeometry(420, 420), M['--zone'], sim.S.corner.x - 210, 0.8, sim.S.corner.z + 210); o.rotation.x = -Math.PI / 2; world.add(o); }
+  }
+
+  const cam = { az: 0.35, pol: 0.9, r: 1750, tx: 0, tz: 0 };
+  function placeCamera() {
+    const s = Math.sin(cam.pol), R = cam.r * Math.max(1, 1.6 / camera.aspect);
+    camera.position.set(cam.tx + R * s * Math.sin(cam.az), R * Math.cos(cam.pol), cam.tz + R * s * Math.cos(cam.az));
+    camera.lookAt(cam.tx, 0, cam.tz);
+  }
+  const ptrs = new Map(); let pinch = 0;
+  canvas.addEventListener('pointerdown', e => { canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]); pinch = 0; });
+  canvas.addEventListener('pointermove', e => {
+    if (!ptrs.has(e.pointerId)) return;
+    const p = ptrs.get(e.pointerId), dx = e.clientX - p[0], dy = e.clientY - p[1]; ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+    if (ptrs.size === 1) { cam.az -= dx * 0.006; cam.pol = Math.max(0.12, Math.min(1.48, cam.pol - dy * 0.005)); }
+    else if (ptrs.size === 2) { const a = [...ptrs.values()], d = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]); if (pinch) cam.r = Math.max(350, Math.min(5000, cam.r * pinch / d)); pinch = d; }
+  });
+  const up = e => { ptrs.delete(e.pointerId); pinch = 0; };
+  canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
+  canvas.addEventListener('wheel', e => { e.preventDefault(); cam.r = Math.max(350, Math.min(5000, cam.r * Math.exp(e.deltaY * 0.0012))); }, { passive: false });
+
+  function resize() {
+    const w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(stage);
+
+  const PHASE = {
+    assemble: 'Forming a chain: each free tongue looks for a free hub',
+    shape: 'Holding the shape', 'lasso/approach': 'Lasso: the head drives to the ball',
+    'lasso/orbit': 'Lasso: the head circles the ball and the chain curls in behind it',
+    'lasso/settle': 'Lasso: the head has docked onto its own tail', 'lasso/carry': 'Lasso: the ring carries the ball to the marked spot',
+    'lasso/done': 'Lasso: delivered', 'sweep/form': 'Sweep: bending into a scoop', 'sweep/push': 'Sweep: pushing the blocks toward the corner',
+    'sweep/done': 'Sweep: parked in the corner with the blocks inside', 'bridge/cross': 'Bridge: the chain pushes itself across an 80 mm gap',
+    'bridge/done': 'Bridge: all robots are across'
+  };
+  let speed = 2, paused = false, flash = '', flashT = 0, lastText = 0;
+  function sync() {
+    const S = sim.S;
+    for (let i = 0; i < bots.length; i++) {
+      const r = S.robots[i], b = bots[i];
+      if (!r || (r.removed && r.lift >= 1)) { b.visible = false; continue; }
+      b.visible = true; b.position.set(r.x, r.y + (r.removed ? r.lift * 240 : 0), r.z);
+      b.userData.base.rotation.y = -r.th; b.userData.ring.rotation.y = -r.ring;
+      b.userData.led.material = LED[r.state === 'linked' ? 'link' : r.state];
+    }
+    if (ballMesh) ballMesh.position.set(S.ball.x, 20, S.ball.z);
+    blockMeshes.forEach((o, i) => o.position.set(S.blocks[i].x, 11, S.blocks[i].z));
+  }
+  function text(now) {
+    if (now - lastText < 180) return; lastText = now;
+    const S = sim.S, st = sim.stats();
+    let p = PHASE[S.mode + '/' + S.phase] || PHASE[S.mode] || '';
+    if (S.mode === 'shape') p = 'Holding the shape: ' + S.shapeName + (st.ring ? ', closed' : '');
+    if (st.chains > 1 && S.mode !== 'assemble') p = 'Healing: the open ends find each other and link again';
+    if (flashT > now) p = flash;
+    $('phase').textContent = p; markShape();
+    $('readout').innerHTML = '<span>linked <b>' + st.linked + '/' + st.robots + '</b></span><span>chains <b>' + st.chains + '</b></span>' +
+      '<span>angle error <b>' + st.shapeErr.toFixed(1) + '°</b></span>' + (S.world === 'bridge' ? '<span>tip droop <b>' + st.droop.toFixed(1) + ' mm</b></span>' : '');
+  }
+  let prev = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
+    if (!paused) { const n = Math.max(1, Math.round(dt * 60 * speed)); for (let i = 0; i < n; i++) sim.step(1 / 60); }
+    sync(); placeCamera(); renderer.render(scene, camera); text(now);
+    requestAnimationFrame(frame);
+  }
+
+  function startDemo(name) {
+    sim.start(name); buildWorld();
+    cam.r = name === 'bridge' ? 2350 : 1750; cam.tx = 0; cam.tz = 0;
+    document.querySelectorAll('[data-demo]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.demo === name)));
+    markShape(); sync();
+  }
+  function markShape() { document.querySelectorAll('[data-shape]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.shape === sim.S.shapeName))); }
+  function setShape(pts, name) {
+    sim.setStroke(pts, name);
+    if (sim.S.mode !== 'assemble') { sim.S.mode = 'shape'; sim.S.phase = ''; }
+    markShape();
+  }
+  document.querySelectorAll('[data-demo]').forEach(b => b.addEventListener('click', () => startDemo(b.dataset.demo)));
+  document.querySelectorAll('[data-shape]').forEach(b => b.addEventListener('click', () => { stroke = null; drawPad(); setShape(sim.STROKES[b.dataset.shape], b.dataset.shape); }));
+  document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => {
+    speed = +b.dataset.speed; document.querySelectorAll('[data-speed]').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+  }));
+  $('pause').addEventListener('click', () => { paused = !paused; $('pause').setAttribute('aria-pressed', String(paused)); $('pause').textContent = paused ? 'Resume' : 'Pause'; });
+  $('pull').addEventListener('click', () => {
+    const id = sim.remove();
+    flash = id == null ? 'Pulling one out needs a chain of at least four robots' : 'Robot ' + id + ' lifted out of the chain';
+    flashT = performance.now() + 2200;
+  });
+  $('xray').addEventListener('change', e => { M['--deck'].opacity = e.target.checked ? 0.32 : 1; M['--deck'].transparent = e.target.checked; M['--deck'].needsUpdate = true; });
+
+  const pad = $('pad'), pc = pad.getContext('2d'); let stroke = null, drawing = false;
+  function drawPad() {
+    pc.clearRect(0, 0, 240, 240);
+    if (!stroke || stroke.length < 2) return;
+    pc.lineWidth = 6; pc.lineCap = 'round'; pc.lineJoin = 'round'; pc.strokeStyle = tok('--accent');
+    pc.beginPath(); stroke.forEach((p, i) => (i ? pc.lineTo(p[0], p[1]) : pc.moveTo(p[0], p[1]))); pc.stroke();
+  }
+  const padPt = e => { const r = pad.getBoundingClientRect(); return [(e.clientX - r.left) * 240 / r.width, (e.clientY - r.top) * 240 / r.height]; };
+  pad.addEventListener('pointerdown', e => { pad.setPointerCapture(e.pointerId); drawing = true; stroke = [padPt(e)]; drawPad(); });
+  pad.addEventListener('pointermove', e => { if (!drawing) return; const p = padPt(e), q = stroke[stroke.length - 1]; if (Math.hypot(p[0] - q[0], p[1] - q[1]) > 3) { stroke.push(p); drawPad(); } });
+  const padUp = () => {
+    if (!drawing) return; drawing = false;
+    let len = 0; for (let i = 1; i < stroke.length; i++) len += Math.hypot(stroke[i][0] - stroke[i - 1][0], stroke[i][1] - stroke[i - 1][1]);
+    if (stroke.length > 5 && len > 80) setShape(stroke.map(p => [p[0], p[1]]), 'your drawing');
+    else { flash = 'Draw a longer stroke'; flashT = performance.now() + 1800; }
+  };
+  pad.addEventListener('pointerup', padUp); pad.addEventListener('pointercancel', padUp);
+
+  new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+
+  applyTheme(); resize(); startDemo('assemble');
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { paused = true; $('pause').setAttribute('aria-pressed', 'true'); $('pause').textContent = 'Resume'; }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

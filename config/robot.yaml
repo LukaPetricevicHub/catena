@@ -1,0 +1,83 @@
+# Single source of truth for robot parameters.
+# Simulator, firmware and CAD all read this file. Never hard-code these numbers elsewhere.
+# Status: v0 starting values from typical part dimensions. Milestone M5 checks them
+# against measured parts and updates this file (record changes in docs/DECISIONS.md).
+
+units: {length: mm, mass: g, angle: deg, time: s}
+
+swarm:
+  design_count: 12        # robots in simulation and tests
+  first_build_count: 6    # robots in the first hardware build
+  min_ring_count: 6       # smallest ring that still cages a 40 mm ball
+
+geometry:
+  pitch: 80.0             # centre-to-centre distance of two linked robots
+  ring:                   # free-turning top ring ("turret")
+    plate_diameter: 78.0
+    plate_thickness: 3.0  # upper and lower plate
+    groove_height: 5.4    # vertical gap between plates; coupon-tested: 5.3 / 5.4 / 5.6
+    hub_diameter: 28.0    # steel ring: two DIN 125 M14 washers (28 x 15 x 2.5)
+    acceptance_half_angle: 100.0   # a tongue may enter within +/- this angle of the ring's rear
+    max_joint_yaw: 100.0           # chain can bend this far at a hub before plates collide with a tongue
+  tongue:
+    thickness: 5.0
+    width: 22.0
+    reach: 66.0           # own centre to tongue tip = pitch - hub_diameter/2
+    tip_radius: 11.0
+    engagement: 25.0      # length of tongue inside the neighbour's groove when linked
+  base:
+    envelope_diameter: 72.0   # everything on the base must stay inside this circle while turning
+    height: 27.0
+    ground_clearance: 3.0
+    wheel_diameter: 30.0
+    wheel_width: 6.0
+    track: 58.0               # wheel centre to wheel centre
+  overall_height: 43.0
+
+mass:
+  target_total: 95.0      # hard upper bound for the bridge calculation
+  ring_assembly: 22.0
+  base_assembly: 73.0
+
+coupling:
+  tip_magnet: {type: disc, diameter: 6.0, thickness: 3.0, grade: N42}
+  hold_force_n: 0.4           # target axial retention at the hub; must stay below traction
+  hold_force_range_n: [0.25, 0.55]
+  capture_range: 6.0          # distance at which the magnet pulls the tip in
+  dock_sense: hall            # analogue hall sensor in the base under the hub
+  centering_detent_mnm: 4.0   # weak magnetic detent that points a free tongue along base heading
+  joint_play_deg: 0.9         # vertical play per joint from groove clearance, for the bridge
+
+drive:
+  motor: N20 plain gearmotor, 6 V class, no shaft encoder
+  wheel_tick_sensor: reflective sensor on a 12-stripe pattern printed on the wheel
+  max_speed: 100.0            # mm/s at nominal battery voltage
+  max_turn_rate: 180.0        # deg/s
+  traction_force_n: 0.7       # mu 0.8 x 0.9 N weight; upper bound for pull and push per robot
+
+sensing:
+  ir_pairs: 6                 # emitter + phototransistor every 60 deg on the base
+  ir_range: 220.0             # usable neighbour ranging distance (centre to centre), assumed
+  ir_bearing_sigma_deg: 10.0
+  ir_range_sigma_frac: 0.10
+  object_range: 110.0         # gap at which a 40 mm white ball is still detected; assumed, measure it
+  edge_sensors: 2             # downward, front-left and front-right
+  gyro_drift_deg_per_min: 2.0
+  ring_angle_sensor: AS5600   # absolute angle of the ring relative to the base
+
+radio:
+  transport: ESP-NOW
+  rule: accept frames only from senders confirmed by an infrared flash within the last 2 s
+
+bridge:
+  max_unsupported: 2          # robots allowed in the air at once
+  first_gap: 80.0             # one pitch
+  expected_tip_droop: 5.0     # with two robots unsupported
+
+table:
+  size: [1400.0, 900.0]       # a straight chain of twelve is 880 long
+  edge_margin: 25.0           # robots turn away at this distance from an edge
+
+test_objects:
+  ball: {diameter: 40.0, mass: 2.7}        # table-tennis ball
+  block: {size: 20.0, mass: 6.0}           # wooden cube
