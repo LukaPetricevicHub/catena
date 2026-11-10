@@ -92,3 +92,22 @@ a ring after a removal in 10 of 10 runs. Those runs are ideal kinematics, not ph
 
 If every robot takes its ring angle the moment the head finds the object, the tail swings
 through the object. Robots take the ring angle only once they are on the circle.
+
+## D15 One parameter table feeds the C header and the Python binding (10 Nov 2026)
+
+`CORE_FIELDS` in `sim/config.py` lists every core parameter with its YAML key and unit
+conversion. The CMake build runs `python -m sim.config --header` to write `params_gen.h`
+and `sim/corelib.py` builds its ctypes struct from the same table, so the two cannot drift.
+Cost: building `core/` needs Python with pyyaml. Would change it: a firmware build that
+cannot run Python.
+
+## D16 Tooling and pins beyond spec section 9 (10 Nov 2026)
+
+`ruff` is added as a development-only tool because `CLAUDE.md` asks for ruff-clean Python.
+`pymunk` is pinned to one exact version because the physics engine decides the outcome of
+every seed. `cadquery` sits in the optional extra `cad` so `make setup` stays small until M5.
+
+## D17 Licence files (10 Nov 2026)
+
+`LICENSE` is MIT and covers all code. `LICENSES/` holds CERN-OHL-P v2 for `cad/` and
+CC BY 4.0 for `docs/`, the README and media. Texts are the SPDX reference copies.

@@ -5,8 +5,10 @@ phone, and use the shape as a tool: a ring that cages and carries a ball, a scoo
 sweeps blocks, a straight chain that bridges a gap. No central controller. Every robot
 runs the same firmware and talks only to robots it can see.
 
-**Status: design and plan. Nothing is built or tested yet.** This README is rewritten in
-milestone M8 with clips and measured results from simulation.
+**Status: scaffold (milestone M0). The build, the config pipeline and placeholder tests
+exist; there is no behaviour yet and nothing has run on hardware.** `STATUS.md` has the
+current state. This README is rewritten in milestone M8 with clips and measured results
+from simulation.
 
 ## Look at it
 
@@ -14,6 +16,16 @@ Open `sim3d/concept.html` in a browser (it needs an internet connection to load 
 library). It is a concept viewer with scripted motion, there to show how the robots link
 and move. The physics simulation that runs the real control code is built in milestones
 M1 to M4.
+
+## Build and test
+
+Needs Python 3.11 or newer, CMake 3.20 or newer and a C++17 compiler.
+
+```
+make setup    # creates .venv, installs the Python packages, builds core
+make test     # C++ unit tests, then the Python tests
+make help     # every target
+```
 
 ## Read more
 
@@ -26,4 +38,7 @@ M1 to M4.
 
 ## Licences
 
-Code MIT, hardware files CERN-OHL-P v2, documentation CC BY 4.0 (files added in M0).
+- Code (`core/`, `sim/`, `firmware/`, `ui/`, `tests/`, build files): MIT, see `LICENSE`.
+- Hardware files (`cad/`): CERN-OHL-P v2, see `LICENSES/CERN-OHL-P-2.0.txt`.
+- Documentation (`docs/`, this README, media): CC BY 4.0, see `LICENSES/CC-BY-4.0.txt`.
+- `tests/cpp/third_party/doctest.h` is third-party code under MIT; its licence sits next to it.

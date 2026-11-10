@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "catena-sim"
+version = "0.0.0"
+description = "Simulator for Catena, a swarm of chain-forming table robots"
+requires-python = ">=3.11"
+license = "MIT"
+# docs/SPEC.md section 9. pymunk is pinned exactly: it decides the outcome of every seed.
+dependencies = [
+  "pymunk==7.3.1",
+  "numpy>=2.0",
+  "pyyaml>=6.0",
+  "pygame-ce>=2.5",
+  "websockets>=13",
+  "imageio[ffmpeg]>=2.34",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff==0.17.4"]
+cad = ["cadquery>=2.4"]
+
+[tool.setuptools.packages.find]
+include = ["sim*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
