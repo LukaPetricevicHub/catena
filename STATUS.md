@@ -2,6 +2,32 @@
 
 Updated at the end of every session. Newest entry on top.
 
+## 10 Nov 2026: M0 scaffold done, CI not yet run
+
+Done
+- Layout from `CLAUDE.md`, Makefile targets (`make help`), CMake build of `core/` (shared
+  library for ctypes, static library for unit tests), Python package `sim`, config loader,
+  generated header `build/generated/catena/params_gen.h`, licences, GitHub Actions workflow.
+- Decisions D15 to D17 (parameter table, tooling and pins, licence files).
+
+Verified how
+- `make setup && make test` on a fresh `git clone` of commit 03de145 into a temporary
+  directory on this Mac (Apple clang 21, CMake 4.0, Python 3.12): 1 of 1 C++ test binary
+  and 6 of 6 pytest tests passed; `make lint` clean.
+- Header and loader agree: `tests/test_config.py` compares the pitch, and then every
+  field, between the compiled library and the Python loader.
+- CI is NOT verified. The repository has no GitHub remote, so the workflow in
+  `.github/workflows/ci.yml` has never run. Nothing was built on Linux.
+
+Open problems
+- M0 acceptance line "CI is green" is open until the repository is pushed to GitHub.
+- This Mac had only Python 3.10; Python 3.12 was installed with `brew install python@3.12`.
+- `make sim`, `make cad`, `make fw` and `make clips` exit with an error that names the
+  milestone that brings them. They are placeholders, not working targets.
+
+Next
+- M1 Simulator foundation.
+
 ## 10 Nov 2026: project set up, no code yet
 
 Done
