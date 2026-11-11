@@ -1,12 +1,15 @@
 """M1 acceptance: wandering robots stay on the table, and a seed fixes the whole run."""
 
+import os
+
 import pytest
 
 from sim.config import load_config
 from sim.runner import run, run_seeds
 
 DURATION_S = 120.0
-SEEDS = list(range(10))
+# M1 asks for 10 of 10 seeds; `make test-full` (CATENA_FULL=1) runs 50.
+SEEDS = list(range(50 if os.environ.get("CATENA_FULL") else 10))
 # Seed 15 once fell: a robot parallel to an edge reversed along it (fixed in core wander).
 REGRESSION_SEEDS = [15]
 
