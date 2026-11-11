@@ -35,9 +35,11 @@ Verified how (all simulated; nothing has run on hardware)
   `make lint` clean. `make test` takes about 9 s here, `make test-full` about 29 s.
 
 Open problems
-- CI has never run: no GitHub remote. Both M0 "CI is green" and the CI part of every later
-  milestone stay open until the repository is pushed. `ci.yml` now passes `PYTHON=python`
-  so the runner uses the interpreter from setup-python.
+- CI has never run: nothing from M0 or M1 has been pushed yet. The GitHub repository
+  `LukaPetricevicHub/catena` exists (it holds the design docs, identical to the files this
+  work started from); the M0 and M1 commits were replayed on top of it on 11 Nov, so a push
+  is a fast-forward. M0 "CI is green" stays open until the first run. `ci.yml` passes
+  `PYTHON=python` so the runner uses the interpreter from setup-python.
 - About half of all IR samples are spoiled by flash collisions (0.46 to 0.51 with 12 robots).
   Fine for wandering; watch it in M2 docking.
 - Wandering robots dock by accident (161 link events over 50 runs). M1 core ignores links;
@@ -48,7 +50,7 @@ Open problems
 - Edge sensor spot positions (`sensing.edge_sensor_xy`) and all wander tuning are assumed.
 
 Next
-- Push to GitHub so CI runs (the owner's call), then M2 chain forming.
+- Push to GitHub so CI runs, check it is green, then M2 chain forming.
 
 ## 10 Nov 2026: M0 scaffold done, CI not yet run
 
@@ -59,13 +61,15 @@ Done
 - Decisions D15 to D17 (parameter table, tooling and pins, licence files).
 
 Verified how
-- `make setup && make test` on a fresh `git clone` of commit 03de145 into a temporary
+- `make setup && make test` on a fresh `git clone` of commit 03de145 (7354acc after the
+  history was joined to GitHub's on 11 Nov; same files) into a temporary
   directory on this Mac (Apple clang 21, CMake 4.0, Python 3.12): 1 of 1 C++ test binary
   and 6 of 6 pytest tests passed; `make lint` clean.
 - Header and loader agree: `tests/test_config.py` compares the pitch, and then every
   field, between the compiled library and the Python loader.
-- CI is NOT verified. The repository has no GitHub remote, so the workflow in
-  `.github/workflows/ci.yml` has never run. Nothing was built on Linux.
+- CI is NOT verified. Nothing had been pushed, so the workflow in
+  `.github/workflows/ci.yml` has never run. Nothing was built on Linux. (This entry first
+  said there was no GitHub remote; the repository existed, the local folder was not linked.)
 
 Open problems
 - M0 acceptance line "CI is green" is open until the repository is pushed to GitHub.
