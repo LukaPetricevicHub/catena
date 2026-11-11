@@ -2,6 +2,54 @@
 
 Updated at the end of every session. Newest entry on top.
 
+## 11 Nov 2026: M1 simulator foundation done (simulated); CI still never run
+
+Done
+- core: C API (`catena_create/step/destroy`, input and output structs), `Hal` interface,
+  flash ranging estimator, FLASH announcements about 10 times a second, neighbour table,
+  `WANDER` (cruise, steer away from neighbours ahead, back off and turn at a table edge).
+- sim: pymunk world (traction-limited wheels, ring on a pivot with the detent, links as
+  groove + magnet + yaw limit), sensor and radio models, swarm runner, `wander` scenario,
+  JSON runner (`python -m sim.runner wander --seed 3`), pygame viewer (`make sim S=wander`).
+- Config gained radio timing, ring and edge sensor details, `behaviour.wander` and `sim`.
+  Decisions D18 to D22.
+
+Verified how (all simulated; nothing has run on hardware)
+- Wander, 12 robots, 120 s: no fall in 10 of 10 seeds (`make test`) and 50 of 50
+  (`make test-full`), plus regression seed 15. Closest any centre came to an edge over the
+  50 seeds: 10 mm. Every robot drove at least 5.3 m per run, so nobody passes by standing still.
+- Seed 15 first failed: a robot parallel to an edge reversed along it until it fell. Fixed in
+  core (D22); C++ test `a robot finishes its turn in place even while a sensor still sees no table`.
+- Link: a robot pushed at 20 mm/s links from 0, +/-45 and +/-90 degrees off the rear and
+  not from 120, 180 or -135; the joint holds 3 s at 0.5 and 0.9 times the hold force and
+  breaks at 1.1 and 1.5; a robot reversing away unlinks (D1).
+- Same seed, same result: a repeat of seed 0 in a separate process gives identical final
+  positions and metrics; a repeat in the same process too.
+- Flash ranging over 1000 samples through radio model and core estimator: bearing error sd
+  10.03 deg (configured 10), mean -0.13 deg; range error sd 9.7% (configured 10%), mean
+  0.3%. Frames dropped 5.0% (configured 5%). By design (D18) this proves the pipeline
+  reproduces the configured noise, not that real IR behaves this way.
+- `make sim S=wander` opened a real window on this Mac (30 s at 8x; screenshot checked);
+  `tests/test_m1_viewer.py` runs the same make target headless.
+- Fresh `git clone`, `make setup && make test`: 14 C++ test cases, 29 pytest tests pass,
+  `make lint` clean. `make test` takes about 9 s here, `make test-full` about 29 s.
+
+Open problems
+- CI has never run: no GitHub remote. Both M0 "CI is green" and the CI part of every later
+  milestone stay open until the repository is pushed. `ci.yml` now passes `PYTHON=python`
+  so the runner uses the interpreter from setup-python.
+- About half of all IR samples are spoiled by flash collisions (0.46 to 0.51 with 12 robots).
+  Fine for wandering; watch it in M2 docking.
+- Wandering robots dock by accident (161 link events over 50 runs). M1 core ignores links;
+  M2 must handle links it did not ask for.
+- Not modelled: IR occlusion by other robots, the solid front sector of the ring (tongues
+  collide only with hubs, as spec section 8 says), clip recording in the viewer (needed by
+  `make clips` in M4).
+- Edge sensor spot positions (`sensing.edge_sensor_xy`) and all wander tuning are assumed.
+
+Next
+- Push to GitHub so CI runs (the owner's call), then M2 chain forming.
+
 ## 10 Nov 2026: M0 scaffold done, CI not yet run
 
 Done

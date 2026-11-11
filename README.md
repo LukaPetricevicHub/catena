@@ -5,10 +5,10 @@ phone, and use the shape as a tool: a ring that cages and carries a ball, a scoo
 sweeps blocks, a straight chain that bridges a gap. No central controller. Every robot
 runs the same firmware and talks only to robots it can see.
 
-**Status: scaffold (milestone M0). The build, the config pipeline and placeholder tests
-exist; there is no behaviour yet and nothing has run on hardware.** `STATUS.md` has the
-current state. This README is rewritten in milestone M8 with clips and measured results
-from simulation.
+**Status: simulator foundation (milestone M1). Robots wander and avoid table edges in a 2D
+physics simulation; they do not form chains yet. Nothing has run on hardware.**
+`STATUS.md` has the current state. This README is rewritten in milestone M8 with clips and
+measured results from simulation.
 
 ## Look at it
 
@@ -22,9 +22,10 @@ M1 to M4.
 Needs Python 3.11 or newer, CMake 3.20 or newer and a C++17 compiler.
 
 ```
-make setup    # creates .venv, installs the Python packages, builds core
-make test     # C++ unit tests, then the Python tests
-make help     # every target
+make setup        # creates .venv, installs the Python packages, builds core
+make test         # C++ unit tests, then the Python tests
+make sim S=wander # watch twelve simulated robots wander (space pauses, + and - change speed)
+make help         # every target
 ```
 
 ## Read more
