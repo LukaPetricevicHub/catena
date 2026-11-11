@@ -2,7 +2,7 @@
 
 Updated at the end of every session. Newest entry on top.
 
-## 11 Nov 2026: M1 simulator foundation done (simulated); CI still never run
+## 11 Nov 2026: M1 simulator foundation done (simulated); CI green
 
 Done
 - core: C API (`catena_create/step/destroy`, input and output structs), `Hal` interface,
@@ -35,11 +35,9 @@ Verified how (all simulated; nothing has run on hardware)
   `make lint` clean. `make test` takes about 9 s here, `make test-full` about 29 s.
 
 Open problems
-- CI has never run: nothing from M0 or M1 has been pushed yet. The GitHub repository
-  `LukaPetricevicHub/catena` exists (it holds the design docs, identical to the files this
-  work started from); the M0 and M1 commits were replayed on top of it on 11 Nov, so a push
-  is a fast-forward. M0 "CI is green" stays open until the first run. `ci.yml` passes
-  `PYTHON=python` so the runner uses the interpreter from setup-python.
+- CI is green (closes M0 "CI is green"): run 43032980045 on 11 Nov, ubuntu-latest and
+  macos-latest, each 1 C++ test binary, 29 pytest tests and ruff passed. The local history
+  was replayed onto GitHub's design-doc commits first, so the push was a fast-forward.
 - About half of all IR samples are spoiled by flash collisions (0.46 to 0.51 with 12 robots).
   Fine for wandering; watch it in M2 docking.
 - Wandering robots dock by accident (161 link events over 50 runs). M1 core ignores links;
@@ -50,7 +48,7 @@ Open problems
 - Edge sensor spot positions (`sensing.edge_sensor_xy`) and all wander tuning are assumed.
 
 Next
-- Push to GitHub so CI runs, check it is green, then M2 chain forming.
+- M2 chain forming.
 
 ## 10 Nov 2026: M0 scaffold done, CI not yet run
 
