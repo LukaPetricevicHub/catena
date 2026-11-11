@@ -19,6 +19,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: make setup
+      # PYTHON=python: use the interpreter setup-python installed, not a system python3.x.
+      - run: make setup PYTHON=python
       - run: make test
       - run: make lint

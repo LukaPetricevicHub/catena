@@ -28,8 +28,8 @@ def test_every_compiled_parameter_matches_the_loader():
 
 def test_angles_reach_code_in_radians():
     cfg = load_config()
-    yaw_deg = cfg["geometry"]["ring"]["max_joint_yaw"]
-    assert core_params(cfg)["max_joint_yaw_rad"] == pytest.approx(math.radians(yaw_deg))
+    turn_deg = cfg["drive"]["max_turn_rate"]
+    assert core_params(cfg)["max_turn_rate_rad_s"] == pytest.approx(math.radians(turn_deg))
 
 
 def test_overrides_change_one_value_and_reject_unknown_keys():

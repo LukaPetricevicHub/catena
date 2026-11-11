@@ -54,20 +54,47 @@ drive:
   max_speed: 100.0            # mm/s at nominal battery voltage
   max_turn_rate: 180.0        # deg/s
   traction_force_n: 0.7       # mu 0.8 x 0.9 N weight; upper bound for pull and push per robot
+  wheel_ticks_per_rev: 12     # stripes on the wheel
 
 sensing:
   ir_pairs: 6                 # emitter + phototransistor every 60 deg on the base
   ir_range: 220.0             # usable neighbour ranging distance (centre to centre), assumed
   ir_bearing_sigma_deg: 10.0
   ir_range_sigma_frac: 0.10
+  ir_reference_range: 100.0   # calibration: a receiver facing the sender reads 1.0 at this range
   object_range: 110.0         # gap at which a 40 mm white ball is still detected; assumed, measure it
   edge_sensors: 2             # downward, front-left and front-right
+  edge_sensor_xy: [30.0, 15.0]  # spot of the left sensor in the base frame; right is mirrored; assumed
   gyro_drift_deg_per_min: 2.0
   ring_angle_sensor: AS5600   # absolute angle of the ring relative to the base
+  ring_angle_sigma_deg: 0.1   # assumed
 
 radio:
   transport: ESP-NOW
   rule: accept frames only from senders confirmed by an infrared flash within the last 2 s
+  drop_rate: 0.05             # fraction of frames lost, per receiver
+  flash_period: 0.1           # s between a robot's FLASH announcements
+  flash_jitter: 0.1           # each period varies by up to this fraction, so robots drift apart
+  flash_collision_window: 0.003  # two FLASH frames closer than this spoil the IR sample
+  neighbour_timeout: 2.0      # s; the link layer forgets a sender not seen flashing for this long
+
+core:
+  tick_hz: 50                 # behaviour update rate
+
+behaviour:
+  wander:
+    speed: 60.0               # mm/s
+    turn_rate: 40.0           # deg/s, largest random turn rate while cruising
+    retarget_period: 1.5      # s between new random turn rates
+    backoff_distance: 40.0    # mm reversed after a front edge sensor loses the table
+    backoff_speed: 40.0       # mm/s
+    spin_rate: 120.0          # deg/s, turning in place
+    turn_min: 90.0            # deg turned away from an edge, at least
+    turn_max: 180.0           # deg, at most
+    avoid_range: 140.0        # mm; a neighbour closer than this ahead makes the robot steer away
+    avoid_stop_range: 105.0   # mm; closer than this ahead the robot stops and turns in place
+    avoid_half_angle: 70.0    # deg either side of the heading that counts as ahead
+    neighbour_memory: 0.5     # s a flash measurement is trusted for steering
 
 bridge:
   max_unsupported: 2          # robots allowed in the air at once
@@ -81,3 +108,11 @@ table:
 test_objects:
   ball: {diameter: 40.0, mass: 2.7}        # table-tennis ball
   block: {size: 20.0, mass: 6.0}           # wooden cube
+
+sim:                          # 2D simulator model, not robot hardware
+  physics_hz: 240
+  solver_iterations: 20
+  contact_friction: 0.3       # plate on plate and base on base
+  ring_damping_ratio: 0.5     # bearing friction of a free ring, as a fraction of critical damping
+  link_seat_speed: 100.0      # mm/s; fastest a new link pulls a tip into line with the hub
+  start_spacing: 110.0        # mm; random starts keep centres at least this far apart

@@ -111,3 +111,38 @@ every seed. `cadquery` sits in the optional extra `cad` so `make setup` stays sm
 
 `LICENSE` is MIT and covers all code. `LICENSES/` holds CERN-OHL-P v2 for `cad/` and
 CC BY 4.0 for `docs/`, the README and media. Texts are the SPDX reference copies.
+
+## D18 Flash ranging: noise on bearing and range, rendered into six readings (11 Nov 2026)
+
+The simulator draws bearing and range noise with the configured sigmas, then renders six
+cosine-lobe receiver readings (receiver k points at k x 60 degrees) by the inverse-square
+law. Core computes bearing from the vector sum and range from its length, so the estimator
+runs in C++ for sim and robot alike. A physical receiver noise model waits for two boards.
+
+## D19 Randomness comes from the platform through `catena_inputs_t.entropy` (11 Nov 2026)
+
+Core needs random numbers (wander, flash timing). Each step the platform supplies 32 fresh
+bits (the ESP32 hardware RNG; a seeded generator in the simulator), mixed into a PRNG in
+core. The spec's `catena_create` signature stays unchanged and every run follows its seed.
+
+## D20 Simulated link: groove, magnet, yaw limit (11 Nov 2026)
+
+A link is a groove joint (hub stays on the tongue axis, carries compression), a slide joint
+whose force is capped at the hold force (the magnet), and a +/-100 degree yaw limit. It breaks
+when the tip is pulled more than the capture range off the hub. The magnet cannot pull a
+robot whose wheels hold, so the docking robot drives the tip in; the hall reading is
+analogue, 1 when seated and 0 at the edge of capture range.
+
+## D21 Flash timing and collisions in the simulator (11 Nov 2026)
+
+Core requests a flash with a delay inside the current 20 ms step. The simulator resolves
+collisions (3 ms window) once the following step's flashes are known and delivers samples
+one step later. With twelve robots at 10 Hz about half the IR samples are spoiled (measured
+0.46 to 0.51); smarter scheduling can wait until it limits chain forming.
+
+## D22 Wander backs off a fixed distance and turns in place (11 Nov 2026)
+
+After a front edge sensor loses the table the robot reverses 40 mm, then turns in place
+90 to 180 degrees, without waiting for the sensors to see table again. Waiting let a robot
+parallel to an edge reverse along it until it fell (seed 15). Neighbours ahead, measured by
+flash, make it steer away. IR occlusion by other robots is not modelled yet.

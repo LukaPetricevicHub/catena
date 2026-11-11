@@ -63,14 +63,28 @@ class CoreField:
 # Order here is the order of the C struct and of the ctypes mirror in sim/corelib.py.
 CORE_FIELDS: tuple[CoreField, ...] = (
     CoreField("pitch_mm", "geometry.pitch"),
-    CoreField("max_joint_yaw_rad", "geometry.ring.max_joint_yaw", RAD_PER_DEG),
     CoreField("track_mm", "geometry.base.track"),
     CoreField("max_speed_mm_s", "drive.max_speed"),
     CoreField("max_turn_rate_rad_s", "drive.max_turn_rate", RAD_PER_DEG),
     CoreField("traction_force_n", "drive.traction_force_n"),
     CoreField("hold_force_n", "coupling.hold_force_n"),
     CoreField("ir_range_mm", "sensing.ir_range"),
-    CoreField("edge_margin_mm", "table.edge_margin"),
+    CoreField("ir_reference_range_mm", "sensing.ir_reference_range"),
+    CoreField("flash_period_s", "radio.flash_period"),
+    CoreField("flash_jitter_frac", "radio.flash_jitter"),
+    CoreField("tick_hz", "core.tick_hz"),
+    CoreField("wander_speed_mm_s", "behaviour.wander.speed"),
+    CoreField("wander_turn_rate_rad_s", "behaviour.wander.turn_rate", RAD_PER_DEG),
+    CoreField("wander_retarget_period_s", "behaviour.wander.retarget_period"),
+    CoreField("wander_backoff_distance_mm", "behaviour.wander.backoff_distance"),
+    CoreField("wander_backoff_speed_mm_s", "behaviour.wander.backoff_speed"),
+    CoreField("wander_spin_rate_rad_s", "behaviour.wander.spin_rate", RAD_PER_DEG),
+    CoreField("wander_turn_min_rad", "behaviour.wander.turn_min", RAD_PER_DEG),
+    CoreField("wander_turn_max_rad", "behaviour.wander.turn_max", RAD_PER_DEG),
+    CoreField("wander_avoid_range_mm", "behaviour.wander.avoid_range"),
+    CoreField("wander_avoid_stop_range_mm", "behaviour.wander.avoid_stop_range"),
+    CoreField("wander_avoid_half_angle_rad", "behaviour.wander.avoid_half_angle", RAD_PER_DEG),
+    CoreField("wander_memory_s", "behaviour.wander.neighbour_memory"),
 )
 
 # Compile-time integer constants (array sizes in core).

@@ -23,7 +23,7 @@ help:
 	@echo "make test         C++ unit tests, then fast pytest scenarios"
 	@echo "make test-full    all scenarios across the full seed sets"
 	@echo "make lint         ruff check on the Python code"
-	@echo "make sim S=lasso  run a scenario with the viewer (from M1)"
+	@echo "make sim S=wander run a scenario with the viewer (SEED=n, ARGS='--speed 4')"
 	@echo "make cad          build all parts, run checks, export STEP/STL/3MF (from M5)"
 	@echo "make fw           build the firmware with PlatformIO, no upload (from M7)"
 	@echo "make clips        render README clips from scenarios (from M4)"
@@ -53,8 +53,8 @@ test-full: core
 lint: $(STAMP)
 	$(PY) -m ruff check sim tests
 
-sim:
-	@echo "make sim: the simulator arrives in milestone M1"; exit 1
+sim: core
+	$(PY) -m sim.runner $(S) --seed $(SEED) --viewer $(ARGS)
 
 cad:
 	@echo "make cad: CAD arrives in milestone M5"; exit 1
