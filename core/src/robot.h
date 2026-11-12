@@ -109,6 +109,7 @@ class Robot {
   float driven_mm_ = 0.0f;
   float leave_left_mm_ = 0.0f;
   float approach_bias_rad_ = 0.0f;
+  bool traced_here_ = false;  // I see a lower-ranked head that is seeking
   bool run_in_ = false;  // towing: on the straight run from the outer circle to the standoff
 
   float cruise_turn_rad_s_ = 0.0f;

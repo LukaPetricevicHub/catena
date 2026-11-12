@@ -200,3 +200,24 @@ With 10% jitter two robots whose flashes collided kept colliding: one robot got 
 sample of a linked neighbour for 2.5 s and the link layer dropped it. With 50% jitter
 successive collisions are nearly independent. A linked neighbour also stays an accepted
 sender while its link frames arrive. Would change it: a slotted flash schedule.
+
+## D30 A head with a chain walks round a tail further out, then runs straight in (12 Nov 2026)
+
+A robot towed round the standoff circle trails inside it, about 60 deg off the tail's
+direction; the joint on the head's hub needs 80, so the head's tongue never reached the tail.
+With a chain the head circles `seek.tow_standoff_extra` further out, runs in, and docks only
+while the robot behind it is `dock.tow_margin` clear of the joint limit (its own flash bearing).
+
+## D31 Edge turns of a towing head clear every nearby robot; its blind reverse is short (12 Nov 2026)
+
+A head whose own chain lay curled beside it turned away from the edge, avoided the chain and
+swung back to the edge, for a minute or more. The turn now goes on until no robot within
+avoiding range is ahead. After a refused link (LINK_NAK) a towing head reverses a quarter
+pitch only: it has no edge sensor at the rear and fell off the table once in simulation.
+
+## D32 A chain slows down while a lower-ranked head works along it (12 Nov 2026)
+
+A seeker with a chain is no faster than the chain it follows, so it rarely reached the tail.
+Any member that sees a lower-ranked head with a target sets bit 4 in LINK_UP; the head then
+leads at `seek.traced_speed` (0.3) of its speed. Slowing, not stopping: a full stop passed
+fewer seeds (135 against 140 of 150) and D28's deadlock of a held chain stays impossible.

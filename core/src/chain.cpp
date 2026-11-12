@@ -30,6 +30,7 @@ void ChainLink::set_behind(uint8_t id, uint8_t count, uint8_t min_id, uint64_t n
   slack_behind_ = 255;
   hold_behind_ = false;
   sight_behind_ = false;
+  traced_behind_ = false;
   behind_heard_us_ = now_us;
 }
 
@@ -48,6 +49,7 @@ bool ChainLink::on_frame(uint8_t src, const uint8_t* data, uint8_t len, uint64_t
     min_behind_ = data[2];
     hold_behind_ = (data[3] & 1) != 0;
     sight_behind_ = (data[3] & 2) != 0;
+    traced_behind_ = (data[3] & 4) != 0;
     slack_behind_ = data[4];
     behind_heard_us_ = now_us;
     return true;
@@ -65,12 +67,14 @@ uint8_t ChainLink::make_ack(uint8_t* out, float hall, float speed_mm_s) const {
   return 5;
 }
 
-uint8_t ChainLink::make_up(uint8_t* out, bool hold_here, float hall, bool sight_here) const {
+uint8_t ChainLink::make_up(uint8_t* out, bool hold_here, float hall, bool sight_here,
+                           bool traced_here) const {
   out[0] = CATENA_FRAME_LINK_UP;
   out[1] = count_from_here();
   out[2] = min_from_here();
   out[3] = static_cast<uint8_t>((hold_here || hold_behind() ? 1 : 0) |
-                                (sight_here || sight_behind() ? 2 : 0));
+                                (sight_here || sight_behind() ? 2 : 0) |
+                                (traced_here || traced_behind() ? 4 : 0));
   out[4] = behind_ == CATENA_NONE ? 255 : lower(to_byte(hall), slack_behind_);
   return 5;
 }

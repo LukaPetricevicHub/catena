@@ -11,11 +11,6 @@ from sim.scenarios import chain
 # M2 asks for 50 seeds; `make test` runs the first 10, `make test-full` (CATENA_FULL=1) all.
 SEEDS = list(range(50 if os.environ.get("CATENA_FULL") else 10))
 REQUIRED_FRACTION = 0.9
-# The 90% line is not met yet: 37 of 50 seeds on 12 Nov 2026 (see STATUS.md). The two tests
-# that hold it are expected to fail until it is; this floor catches the code getting worse.
-FLOOR_FRACTION = 0.4
-NOT_MET = pytest.mark.xfail(strict=False, reason="M2 threshold open: 74% measured, 90% asked")
-
 
 @pytest.fixture(scope="module")
 def results():
@@ -26,7 +21,6 @@ def summary(results) -> str:
     return "\n".join(f"seed {r['seed']}: {r['metrics']}" for r in results if not r["passed"])
 
 
-@NOT_MET
 def test_one_chain_of_twelve_forms_within_180_s_in_nine_of_ten_runs(results):
     formed = [r for r in results if r["metrics"]["one_chain"]]
     for r in formed:
@@ -55,12 +49,6 @@ def test_no_robot_falls_off_the_table_while_chains_form(results):
         assert r["metrics"]["falls"] == 0, f"seed {r['seed']}: {r['metrics']}"
 
 
-@NOT_MET
 def test_enough_runs_pass_every_check_at_once(results):
     passed = [r for r in results if r["passed"]]
     assert len(passed) >= REQUIRED_FRACTION * len(results), summary(results)
-
-
-def test_chain_forming_has_not_got_worse(results):
-    passed = [r for r in results if r["passed"]]
-    assert len(passed) >= FLOOR_FRACTION * len(results), summary(results)

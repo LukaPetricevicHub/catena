@@ -102,6 +102,7 @@ CORE_FIELDS: tuple[CoreField, ...] = (
     CoreField("seek_keep_ratio", "behaviour.seek.keep_ratio"),
     CoreField("seek_hold_range_mm", "behaviour.seek.hold_range"),
     CoreField("seek_turn_back", "behaviour.seek.turn_back"),
+    CoreField("seek_traced_speed", "behaviour.seek.traced_speed"),
     CoreField("dock_window_rad", "behaviour.dock.window", RAD_PER_DEG),
     CoreField("dock_tow_margin_rad", "behaviour.dock.tow_margin", RAD_PER_DEG),
     CoreField("dock_align_rad", "behaviour.dock.align", RAD_PER_DEG),

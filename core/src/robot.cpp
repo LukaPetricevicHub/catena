@@ -103,7 +103,7 @@ void Robot::step(Hal& hal) {
       sight = sight || (tracked(n) && n.has_info && n.chain_id != mine.chain_id &&
                         outranks(Rank{n.size, n.chain_id}, mine));
     }
-    hal.send(chain_.ahead(), frame, chain_.make_up(frame, hold_here_, hall_, sight));
+    hal.send(chain_.ahead(), frame, chain_.make_up(frame, hold_here_, hall_, sight, traced_here_));
   }
 
   catena_debug_t debug = {};
@@ -290,6 +290,14 @@ void Robot::update_links(Hal& hal, float dt_s) {
 void Robot::find_seeker() {
   hold_here_ = false;
   seeker_ = CATENA_NONE;
+  traced_here_ = false;
+  for (const Neighbour& n : neighbours_) {
+    traced_here_ = traced_here_ ||
+                   (tracked(n) && n.has_info && (n.flags & CATENA_FLAG_HEAD) &&
+                    n.target != CATENA_NONE && n.chain_id != chain_.chain_id() &&
+                    now_us_ - n.info_us <= to_us(p_.wander_memory_s) &&
+                    outranks(chain_.rank(), Rank{n.size, n.chain_id}));
+  }
   if (chain_.behind() != CATENA_NONE || hall_ > p_.hall_link) return;
   const Rank mine = chain_.rank();
   float best_mm = p_.seek_hold_range_mm;
@@ -346,7 +354,9 @@ void Robot::follow(Hal& hal) {
 // A head with robots behind it slows down when any link of its chain stretches.
 float Robot::lead_speed_mm_s() const {
   const float span = p_.follow_slack_full - p_.follow_slack_stop;
-  return p_.follow_lead_speed_mm_s *
+  // Slower while a lower-ranked head works along my chain: it tows too and must catch up.
+  const float traced = traced_here_ || chain_.traced_behind() ? p_.seek_traced_speed : 1.0f;
+  return traced * p_.follow_lead_speed_mm_s *
          clampf((chain_.slack(hall_) - p_.follow_slack_stop) / span, 0.0f, 1.0f);
 }
 

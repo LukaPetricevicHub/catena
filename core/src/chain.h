@@ -36,7 +36,8 @@ class ChainLink {
   bool on_frame(uint8_t src, const uint8_t* data, uint8_t len, uint64_t now_us);
   // Frames for the robot behind and the robot ahead; return the length.
   uint8_t make_ack(uint8_t* out, float hall, float speed_mm_s) const;
-  uint8_t make_up(uint8_t* out, bool hold_here, float hall, bool sight_here) const;
+  uint8_t make_up(uint8_t* out, bool hold_here, float hall, bool sight_here,
+                  bool traced_here = false) const;
 
   uint8_t index() const;    // the head is 0
   uint8_t size() const;
@@ -45,6 +46,7 @@ class ChainLink {
 
   bool hold_behind() const { return behind_ != CATENA_NONE && hold_behind_; }
   // A robot behind me sees a higher-ranked chain.
+  bool traced_behind() const { return behind_ != CATENA_NONE && traced_behind_; }
   bool sight_behind() const { return behind_ != CATENA_NONE && sight_behind_; }
   // Lowest hall reading of all links behind this robot; `hall` is its own hub.
   float slack(float hall) const;
@@ -68,6 +70,7 @@ class ChainLink {
   uint8_t slack_behind_ = 255;
   bool hold_behind_ = false;
   bool sight_behind_ = false;
+  bool traced_behind_ = false;
   float hall_ahead_ = 1.0f;
   float speed_ahead_mm_s_ = 0.0f;
   uint64_t ahead_heard_us_ = 0;

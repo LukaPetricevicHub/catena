@@ -111,6 +111,7 @@ behaviour:
     tow_standoff_extra: 60.0  # mm; a head with a chain walks round this much further out, then runs in
     keep_ratio: 0.7           # the current goal counts as this much nearer than it is
     hold_range: 200.0         # mm; a tail asks its chain to stand still for a seeker this close
+    traced_speed: 0.3         # share of lead speed left while a lower-ranked head works along my chain
     turn_back: 1              # 1: a head turns back along its chain when a follower sees a higher-ranked chain
   dock:
     window: 35.0              # deg off the middle of the tail's acceptance zone that still starts a dock

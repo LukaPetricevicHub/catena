@@ -2,6 +2,48 @@
 
 Updated at the end of every session. Newest entry on top.
 
+## 12 Nov 2026 (later): M2 acceptance lines all met in simulation (48 of 50 seeds)
+
+Branch `m2-chain-forming`. This entry replaces the open problem "why 13 of 50 fail" below.
+
+Done
+- Jammed tongue (D30): a robot towed round the standoff circle trails inside it, about
+  60 degrees off the tail, and the joint on the head's hub needs 80. A head with a chain now
+  walks round 60 mm further out, runs straight in, and docks only when the robot behind it
+  is clear of the joint limit.
+- Edge trap (D31): a towing head between its own curled chain and an edge turned back and
+  forth for a minute or more. The edge turn now clears every nearby robot.
+- Fall (D31): a towing head reversed blind off the table after its own tail refused its
+  tongue (seed 4, during this work). That reverse is now a quarter pitch.
+- Tracing (D32): a chain leads at 30% speed while a lower-ranked head works along it.
+- Tests: the two 90% tests are no longer marked `xfail`; the 40% floor test is removed.
+
+Verified how (all simulated; nothing has run on hardware)
+- `make test`: 31 C++ test cases, 38 pytest tests pass. `make lint` clean.
+  `make test-full` (50 seeds): 38 pass, 68 s.
+- M2 line 1: **48 of 50 seeds (96%)**, 90% asked. Median forming time 74 s. Seed 11 ends
+  with two chains; seed 17 forms at 180.4 s, 0.4 s late. Over seeds 0 to 149: 140 of 150 (93%).
+- M2 lines 2 to 4: hold as before; slowest count 0.28 s, no mutual chase, no falls in the
+  50 seeds or in the 150. 6 links broke over the 50 runs and re-formed.
+- Each step measured over 150 seeds: before 74% (of 50); outer circle, joint check and
+  edge turn 84%; with the slow-down 93%. A full stop instead of the slow-down: 90%, one fall.
+
+Open problems
+- The new LINK_UP bit (traced) has no C++ unit test of its own; it is covered only by the
+  scenario tests.
+- Tried and removed: keeping the turn direction in corners, and driving on for 2 s after an
+  edge turn before seeking (no gain over 150 seeds; the second produced a fall).
+- The 10 failures in 150 seeds were not analysed one by one. Before the slow-down the time
+  of failing runs went to searching without contact (31%), tracing (23%) and edge turns (31%).
+- The outer circle sits at 185 mm, close to the 220 mm IR range assumed in the config. If
+  the real range is shorter, `seek.tow_standoff_extra` must shrink and the jam may return.
+- Still true from the entry below: lead speed 70 mm/s, loosened M1 movement test, flash
+  collisions, things not modelled, all parameters tuned in simulation only.
+
+Next
+- Merge `m2-chain-forming` and let CI run.
+- Then M3 Shapes, moving, phone page.
+
 ## 12 Nov 2026: M2 chain forming works, but the 90% line is NOT met (74%, simulated)
 
 Branch `m2-chain-forming` (not merged, not pushed; CI has not run on it).
