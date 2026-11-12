@@ -4,7 +4,8 @@ Updated at the end of every session. Newest entry on top.
 
 ## 12 Nov 2026 (later): M2 acceptance lines all met in simulation (48 of 50 seeds)
 
-Branch `m2-chain-forming`. This entry replaces the open problem "why 13 of 50 fail" below.
+Branch `m2-chain-forming`, merged into `main`; CI green on Ubuntu and macOS (`make test`,
+`make lint`; CI does not run the 50-seed set). This entry replaces the open problem "why 13 of 50 fail" below.
 
 Done
 - Jammed tongue (D30): a robot towed round the standoff circle trails inside it, about
@@ -41,8 +42,7 @@ Open problems
   collisions, things not modelled, all parameters tuned in simulation only.
 
 Next
-- Merge `m2-chain-forming` and let CI run.
-- Then M3 Shapes, moving, phone page.
+- M3 Shapes, moving, phone page. M2 is closed.
 
 ## 12 Nov 2026: M2 chain forming works, but the 90% line is NOT met (74%, simulated)
 
