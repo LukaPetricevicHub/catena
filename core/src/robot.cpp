@@ -419,6 +419,15 @@ const Neighbour* Robot::pick_goal() const {
   return best;
 }
 
+// With a robot on my hub my tongue reaches only directions far enough from it (the joint's
+// yaw limit). True when the tongue can point along bearing_rad.
+bool Robot::tow_clear(float bearing_rad) const {
+  const Neighbour* b = towing() ? find(chain_.behind()) : nullptr;
+  if (!b || !tracked(*b)) return true;
+  return std::fabs(wrap_pi(bearing_rad - bearing_of(*b))) >
+         kPi - p_.max_joint_yaw_rad + p_.dock_tow_margin_rad;
+}
+
 // Another head is lining up on the same tail and goes first: it started before me, or we
 // both started and it has the lower id.
 bool Robot::rival(const Neighbour& goal) const {
@@ -475,9 +484,22 @@ void Robot::seek(Hal& hal, const Neighbour& goal, float dt_s) {
   }
   state_ = CATENA_STATE_SEEK;
   seek_detail_ = tail ? CATENA_SEEK_TAIL : CATENA_SEEK_TRACE;
-  const float standoff = p_.seek_standoff_mm + (wait ? 0.5f * p_.pitch_mm : 0.0f);
+  // A robot towed round the standoff circle trails inside it, where the joint on my hub
+  // stops my tongue short of the tail. So with a chain I walk round further out and then
+  // run straight in, which pulls the chain in behind me.
+  const bool tow = tail && towing();
+  const bool clear = tow_clear(bearing);
+  const float outer = p_.seek_standoff_mm + p_.seek_tow_standoff_extra_mm;
+  if (!tow || (guided && std::fabs(offset) > p_.dock_window_rad)) {
+    run_in_ = false;
+  } else if (guided && std::fabs(offset) < 0.5f * p_.dock_window_rad &&
+             (clear || range_mm > outer - 0.25f * p_.seek_tow_standoff_extra_mm)) {
+    run_in_ = true;
+  }
+  const float standoff = (tow && !run_in_ ? outer : p_.seek_standoff_mm) +
+                         (wait ? 0.5f * p_.pitch_mm : 0.0f);
   if (guided && !wait && range_mm < standoff + 0.25f * p_.pitch_mm &&
-      std::fabs(offset) < p_.dock_window_rad) {
+      std::fabs(offset) < p_.dock_window_rad && clear) {
     state_ = CATENA_STATE_DOCK;
     dock_phase_ = CATENA_DOCK_ALIGN;
     phase_start_us_ = now_us_;
@@ -485,7 +507,7 @@ void Robot::seek(Hal& hal, const Neighbour& goal, float dt_s) {
     return;
   }
   // Close in to the standoff circle and walk round it into the acceptance zone.
-  const float radial = clampf((range_mm - standoff) / (0.5f * p_.pitch_mm), 0.0f, 1.0f);
+  const float radial = clampf((range_mm - standoff) / (0.5f * p_.pitch_mm), tow ? -1.0f : 0.0f, 1.0f);
   // Round my own tail I keep walking: the chain a robot back there sees is somewhere near.
   const float round = own ? 1.0f : guided ? clampf(offset / p_.dock_window_rad, -1.0f, 1.0f) : 0.0f;
   const float dx = radial * std::cos(bearing) - round * std::sin(bearing) + push_x;
@@ -583,7 +605,8 @@ const Neighbour* Robot::nearest_ahead() const {
 // robot behind it. `reverse` forces the reversing: a tail refused my tongue.
 void Robot::start_backoff(bool void_left, bool void_right, bool reverse) {
   phase_ = towing() && !reverse ? CATENA_WANDER_TURN : CATENA_WANDER_BACKOFF;
-  backoff_left_mm_ = p_.wander_backoff_distance_mm;
+  // With a chain behind me I only pull the tongue clear: there is no edge sensor at the rear.
+  backoff_left_mm_ = towing() ? 0.25f * p_.pitch_mm : p_.wander_backoff_distance_mm;
   if (void_left && !void_right) {
     turn_dir_ = -1.0f;  // edge on the left: turn clockwise
   } else if (void_right && !void_left) {
@@ -593,15 +616,23 @@ void Robot::start_backoff(bool void_left, bool void_right, bool reverse) {
   }
   turn_target_rad_ = rng_.uniform(p_.wander_turn_min_rad, p_.wander_turn_max_rad);
   turned_rad_ = 0.0f;
-  const Neighbour* behind = towing() ? find(chain_.behind()) : nullptr;
-  if (behind) {
+  if (towing()) {
+    // Turn on until no robot close by is ahead: the one on my hub, or my own chain curled
+    // round me. Avoiding it after the turn would swing me straight back to the edge.
     turn_target_rad_ = p_.wander_turn_min_rad;
-    while (turn_target_rad_ < 1.5f * kPi &&
-           std::fabs(wrap_pi(bearing_of(*behind) - turn_dir_ * turn_target_rad_)) <
-               p_.wander_avoid_half_angle_rad) {
+    while (turn_target_rad_ < 1.5f * kPi && blocked(turn_dir_ * turn_target_rad_)) {
       turn_target_rad_ += 0.1f;
     }
   }
+}
+
+// A robot within avoiding range would be ahead of me after turning by turn_rad.
+bool Robot::blocked(float turn_rad) const {
+  for (const Neighbour& n : neighbours_) {
+    if (!fresh(n) || (n.id != chain_.behind() && range_of(n) > p_.wander_avoid_range_mm)) continue;
+    if (std::fabs(wrap_pi(bearing_of(n) - turn_rad)) < p_.wander_avoid_half_angle_rad) return true;
+  }
+  return false;
 }
 
 // Edge avoidance comes first: it overrides cruising and avoiding neighbours. Backing off

@@ -108,11 +108,13 @@ behaviour:
     turn_gain: 3.0            # 1/s, turn rate per radian of heading error
     memory: 1.0               # s a tracked neighbour position is trusted for seeking
     standoff: 125.0           # mm from the tail where the seeker lines up before docking
+    tow_standoff_extra: 60.0  # mm; a head with a chain walks round this much further out, then runs in
     keep_ratio: 0.7           # the current goal counts as this much nearer than it is
     hold_range: 200.0         # mm; a tail asks its chain to stand still for a seeker this close
     turn_back: 1              # 1: a head turns back along its chain when a follower sees a higher-ranked chain
   dock:
     window: 35.0              # deg off the middle of the tail's acceptance zone that still starts a dock
+    tow_margin: 15.0          # deg the robot behind a docking head must stay clear of its joint limit
     align: 6.0                # deg heading error allowed before driving in
     speed: 30.0               # mm/s
     max_turn_rate: 20.0       # deg/s of correction while driving in

@@ -60,6 +60,8 @@ class Robot {
   const Neighbour* pick_goal() const;
   const Neighbour* pick_adoptee() const;
   bool rival(const Neighbour& goal) const;
+  bool tow_clear(float bearing_rad) const;
+  bool blocked(float turn_rad) const;
   bool accepts_link(const Neighbour& n) const;
   float lead_speed_mm_s() const;
   Neighbour* find(uint8_t id);
@@ -107,6 +109,7 @@ class Robot {
   float driven_mm_ = 0.0f;
   float leave_left_mm_ = 0.0f;
   float approach_bias_rad_ = 0.0f;
+  bool run_in_ = false;  // towing: on the straight run from the outer circle to the standoff
 
   float cruise_turn_rad_s_ = 0.0f;
   float retarget_in_s_ = 0.0f;
