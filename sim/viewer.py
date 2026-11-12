@@ -21,7 +21,9 @@ DETAIL_COLOURS = {  # wander sub-state
     1: (218, 165, 32),  # avoid
     2: (200, 60, 45),  # backoff
     3: (65, 105, 225),  # turn
+    4: (150, 150, 150),  # hold
 }
+STATE_COLOURS = {2: (230, 90, 160), 3: (250, 200, 40), 4: (240, 240, 240)}  # seek, dock, follow
 TABLE = (236, 230, 214)
 FLOOR = (52, 58, 56)
 BASE = (88, 98, 95)
@@ -82,8 +84,10 @@ class Viewer:
                 target = min(end_steps, swarm.world.steps + round(speed * swarm.physics_hz / FPS))
                 if stop_steps is not None:
                     target = min(target, stop_steps)
-                while swarm.world.steps < target:
+                while swarm.world.steps < target and not swarm.stop:
                     swarm.advance()
+                if swarm.stop and exit_after is None:
+                    paused = True
             self.draw(speed, paused)
             pygame.display.flip()
             if stop_steps is not None and swarm.world.steps >= stop_steps:
@@ -120,8 +124,9 @@ class Viewer:
     def draw_robot(self, r) -> None:
         s = self.scale
         cx, cy = self.px(*r.position)
-        state, detail, index, _, neighbours = self.swarm.debug.get(r.id, (0, 0, 0, 0, 0))
-        colour = DETAIL_COLOURS.get(detail, BASE) if state == 1 else BASE
+        dbg = self.swarm.debug.get(r.id)
+        state, detail = (dbg.state, dbg.detail) if dbg else (0, 0)
+        colour = DETAIL_COLOURS.get(detail, BASE) if state == 1 else STATE_COLOURS.get(state, BASE)
         pygame.draw.circle(self.screen, BASE, (cx, cy), round(self.base_r * s))
         rim = max(1, round(2 * s))
         pygame.draw.circle(self.screen, RING, (cx, cy), round(self.ring_r * s), rim)
@@ -132,6 +137,8 @@ class Viewer:
         hy = r.position.y + math.sin(r.heading) * self.base_r * 0.8
         pygame.draw.line(self.screen, colour, (cx, cy), self.px(hx, hy), max(2, round(4 * s)))
         pygame.draw.circle(self.screen, colour, (cx, cy), max(3, round(7 * s)))
-        name = corelib.WANDER_DETAIL.get(detail, "") if state == 1 else ""
-        label = self.font.render(f"{r.id} {name} n{neighbours}", True, TEXT)
+        name = (corelib.WANDER_DETAIL.get(detail, "") if state == 1
+                else corelib.STATE_NAMES.get(state, "").lower())
+        chain = f" {dbg.index + 1}/{dbg.chain_size}" if dbg and dbg.chain_size > 1 else ""
+        label = self.font.render(f"{r.id} {name}{chain}", True, TEXT)
         self.screen.blit(label, (cx - label.get_width() // 2, cy + round(self.ring_r * s) + 2))

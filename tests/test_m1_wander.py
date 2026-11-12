@@ -28,11 +28,13 @@ def test_twelve_wandering_robots_stay_on_the_table_for_120_s(results):
 
 
 def test_wandering_robots_keep_moving(results):
-    # Standing still would pass trivially: every robot must cover at least a third of
-    # what cruising at wander speed would.
+    # Standing still would pass trivially. Since M2 wanderers link up, tow each other and
+    # stand still while another docks, so the bound is on the average, with a low floor
+    # for each robot.
     cruise_mm = load_config()["behaviour"]["wander"]["speed"] * DURATION_S
     for r in results:
-        assert r["metrics"]["min_path_mm"] > cruise_mm / 3, f"seed {r['seed']}"
+        assert r["metrics"]["mean_path_mm"] > cruise_mm / 6, f"seed {r['seed']}"
+        assert r["metrics"]["min_path_mm"] > cruise_mm / 20, f"seed {r['seed']}"
 
 
 def test_same_seed_gives_identical_final_positions(results):

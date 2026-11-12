@@ -19,16 +19,45 @@
 #define CATENA_TX_MAX 4        /* unicast frames sent per step */
 #define CATENA_BROADCAST 0xFFu /* destination id of a broadcast */
 
-/* Frame types: first payload byte. */
-#define CATENA_FRAME_FLASH 1u /* broadcast; [type, sender id] */
+#define CATENA_NONE 0xFFu      /* "no robot" in id fields */
+
+/* Frame types: first payload byte. Link frames go to one robot; core drops every frame
+ * whose sender it has not seen flashing within radio.neighbour_timeout. */
+#define CATENA_FRAME_FLASH 1u    /* broadcast: [type, id, chain id, size, index, flags, target, ahead, behind] */
+#define CATENA_FRAME_LINK_REQ 2u /* head to tail while driving in: [type, chain id, size] */
+#define CATENA_FRAME_LINK_ACK 3u /* hub robot to the robot on its hub, every step the link holds:
+                                    [type, index, lowest id from head to sender, hall, speed] */
+#define CATENA_FRAME_LINK_UP 4u  /* linked robot to the robot ahead, every step:
+                                    [type, robots from sender to tail, lowest id among them,
+                                    flags (1 hold still, 2 a higher-ranked chain is in sight), slack] */
+#define CATENA_FRAME_GUIDE 5u    /* tail to a seeker: [type, seeker's offset from the middle of the
+                                    acceptance zone, int8, 127 = pi, counter-clockwise seen from above] */
+#define CATENA_FRAME_LINK_NAK 6u /* hub robot to the robot on its hub: back out (same chain) */
+
+/* FLASH flags. */
+#define CATENA_FLAG_HEAD 1u    /* tongue free */
+#define CATENA_FLAG_TAIL 2u    /* hub free */
+#define CATENA_FLAG_DOCKING 4u /* lining up or driving in on `target` */
 
 /* debug.state codes. */
 #define CATENA_STATE_WANDER 1u
+#define CATENA_STATE_SEEK 2u
+#define CATENA_STATE_DOCK 3u
+#define CATENA_STATE_FOLLOW 4u
 /* debug.detail codes while wandering. */
 #define CATENA_WANDER_CRUISE 0u
 #define CATENA_WANDER_AVOID 1u
 #define CATENA_WANDER_BACKOFF 2u
 #define CATENA_WANDER_TURN 3u
+#define CATENA_WANDER_HOLD 4u  /* standing still while a robot docks onto the chain's tail */
+/* debug.detail codes while seeking. */
+#define CATENA_SEEK_TAIL 0u    /* going to a tail */
+#define CATENA_SEEK_TRACE 1u   /* following a chain's members toward its tail */
+#define CATENA_SEEK_LEAVE 2u   /* backing off after failed docking attempts */
+/* debug.detail codes while docking. */
+#define CATENA_DOCK_ALIGN 0u
+#define CATENA_DOCK_DRIVE 1u
+#define CATENA_DOCK_RETREAT 2u
 
 #ifdef __cplusplus
 extern "C" {
@@ -71,9 +100,13 @@ typedef struct catena_tx_t {
 typedef struct catena_debug_t {
   uint8_t state;              /* CATENA_STATE_* */
   uint8_t detail;             /* sub-state, e.g. CATENA_WANDER_* */
-  uint8_t index;              /* position in the chain; 0 until chains exist */
+  uint8_t index;              /* position in the chain; the head is 0 */
   uint8_t chain_size;
   uint8_t neighbours;         /* robots measured by flash within the trust window */
+  uint8_t chain_id;           /* lowest robot id in the chain, as far as gossip has reached */
+  uint8_t ahead;              /* robot whose hub my tongue sits on, or CATENA_NONE */
+  uint8_t behind;             /* robot whose tongue sits on my hub, or CATENA_NONE */
+  uint8_t target;             /* tail being sought or docked onto, or CATENA_NONE */
   uint8_t reserved[3];
 } catena_debug_t;
 

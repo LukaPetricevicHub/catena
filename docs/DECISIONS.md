@@ -146,3 +146,57 @@ After a front edge sensor loses the table the robot reverses 40 mm, then turns i
 90 to 180 degrees, without waiting for the sensors to see table again. Waiting let a robot
 parallel to an edge reverse along it until it fell (seed 15). Neighbours ahead, measured by
 flash, make it steer away. IR occlusion by other robots is not modelled yet.
+
+## D23 Link frames: LINK_ACK repeats every step and carries the gossip (12 Nov 2026)
+
+The hub robot sends LINK_ACK to the robot on its hub every step while its hall sensor holds:
+index, lowest id from the head down, its hall reading and its speed along the link. The
+linked robot sends LINK_UP to the robot ahead every step: robots from itself to the tail,
+lowest id among them, hold and sight flags, lowest hall reading behind it. Index, count and
+chain id follow from these (spec 7.3); a lost frame costs one step and a silent link is
+dropped after `chain.link_timeout`. Would change it: a radio that cannot carry 100 frames/s.
+
+## D24 A follower steers by its ring angle and keeps the gap by the hall reading ahead (12 Nov 2026)
+
+Flash range (10%) is too coarse for a 6 mm capture range. The tongue points at the hub
+ahead, so the ring angle is the bearing, and the hub robot reports its analogue hall reading.
+A head with robots behind it drives at `follow.lead_speed`, slowed by the lowest hall
+reading along its chain, never towards the robot on its hub, and at an edge turns in place
+instead of reversing.
+
+## D25 Edge rule for a linked follower (12 Nov 2026)
+
+A follower stops driving forward when both front sensors see no table, and keeps following
+on one: the hub it follows stands on the table and the straight line to it stays on it. It
+takes no backward feed-forward, because nothing senses the edge behind it.
+
+## D26 The tail guides the seeker; a tail alone turns its back (12 Nov 2026)
+
+A seeker cannot see which way a tail's ring points. The tail measures the seeker's bearing
+against its own ring angle and sends the offset from the middle of its acceptance zone
+(GUIDE). The seeker walks round the standoff circle until the offset is inside
+`dock.window`. A tail that is a chain of one turns its back to the seeker instead. While a
+lower-ranked head within `seek.hold_range` announces a tail as its target, that tail's
+chain stands still (flag passed up in LINK_UP).
+
+## D27 Unrequested links are adopted; rings are refused (12 Nov 2026)
+
+Robots bump into each other and tongues land without a LINK_REQ (M1 saw it). After
+`chain.adopt_delay` the hub robot offers the link to the nearest free tongue inside its
+acceptance zone; that robot accepts if its tongue points at the sender. If it is the
+sender's own head the hub robot sends LINK_NAK and the head backs out: rings arrive in M3.
+A robot whose `ahead` is measured out of link range for `chain.link_timeout` drops the link.
+
+## D28 Seekers see more than tails (12 Nov 2026)
+
+A head goes for the nearest robot of any higher-ranked chain and moves along that chain's
+`behind` ids, as far as they are in sight, to its tail. A follower that sees a higher-ranked
+chain sets a flag in LINK_UP; a head with nothing in sight then turns back along its own
+chain. Both use only flash sightings and frames from confirmed neighbours.
+
+## D29 Flash period jitter 0.5 instead of 0.1 (12 Nov 2026)
+
+With 10% jitter two robots whose flashes collided kept colliding: one robot got no clean
+sample of a linked neighbour for 2.5 s and the link layer dropped it. With 50% jitter
+successive collisions are nearly independent. A linked neighbour also stays an accepted
+sender while its link frames arrive. Would change it: a slotted flash schedule.

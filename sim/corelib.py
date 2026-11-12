@@ -17,10 +17,12 @@ FRAME_MAX = 32
 RX_MAX = 16
 TX_MAX = 4
 BROADCAST = 0xFF
+NONE = 0xFF
 FRAME_FLASH = 1
+STATE_WANDER, STATE_SEEK, STATE_DOCK, STATE_FOLLOW = 1, 2, 3, 4
 
-STATE_NAMES = {1: "WANDER"}
-WANDER_DETAIL = {0: "cruise", 1: "avoid", 2: "backoff", 3: "turn"}
+STATE_NAMES = {1: "WANDER", 2: "SEEK", 3: "DOCK", 4: "FOLLOW"}
+WANDER_DETAIL = {0: "cruise", 1: "avoid", 2: "backoff", 3: "turn", 4: "hold"}
 
 u8, u32, i32, f32 = ctypes.c_uint8, ctypes.c_uint32, ctypes.c_int32, ctypes.c_float
 
@@ -70,6 +72,10 @@ class Debug(ctypes.Structure):
         ("index", u8),
         ("chain_size", u8),
         ("neighbours", u8),
+        ("chain_id", u8),
+        ("ahead", u8),
+        ("behind", u8),
+        ("target", u8),
         ("reserved", u8 * 3),
     ]
 

@@ -20,6 +20,7 @@ add_custom_target(catena_params DEPENDS "${CATENA_PARAMS_H}")
 
 add_library(catena_obj OBJECT
   src/catena_c.cpp
+  src/chain.cpp
   src/ranging.cpp
   src/robot.cpp)
 add_dependencies(catena_obj catena_params)

@@ -62,6 +62,7 @@ sensing:
   ir_bearing_sigma_deg: 10.0
   ir_range_sigma_frac: 0.10
   ir_reference_range: 100.0   # calibration: a receiver facing the sender reads 1.0 at this range
+  flash_filter_gain: 0.5      # weight of a new flash measurement in a tracked neighbour position
   object_range: 110.0         # gap at which a 40 mm white ball is still detected; assumed, measure it
   edge_sensors: 2             # downward, front-left and front-right
   edge_sensor_xy: [30.0, 15.0]  # spot of the left sensor in the base frame; right is mirrored; assumed
@@ -74,7 +75,7 @@ radio:
   rule: accept frames only from senders confirmed by an infrared flash within the last 2 s
   drop_rate: 0.05             # fraction of frames lost, per receiver
   flash_period: 0.1           # s between a robot's FLASH announcements
-  flash_jitter: 0.1           # each period varies by up to this fraction, so robots drift apart
+  flash_jitter: 0.5           # each period varies by up to this fraction, so collisions do not repeat
   flash_collision_window: 0.003  # two FLASH frames closer than this spoil the IR sample
   neighbour_timeout: 2.0      # s; the link layer forgets a sender not seen flashing for this long
 
@@ -95,6 +96,36 @@ behaviour:
     avoid_stop_range: 105.0   # mm; closer than this ahead the robot stops and turns in place
     avoid_half_angle: 70.0    # deg either side of the heading that counts as ahead
     neighbour_memory: 0.5     # s a flash measurement is trusted for steering
+
+  chain:                      # link layer (spec 7.2, 7.3); all values assumed, tuned in simulation
+    link_timeout: 0.5         # s without a link frame before a linked neighbour is dropped
+    hall_link: 0.5            # hall reading above this: a tongue tip sits on my hub
+    hall_lost: 0.02           # hall reading below this: the tip has left
+    adopt_delay: 0.3          # s a tip sits on the hub unannounced before the hub robot offers the link
+    link_range: 115.0         # mm; a robot measured farther away than this is not the one linked to me
+  seek:
+    speed: 80.0               # mm/s, a single robot approaching a tail
+    turn_gain: 3.0            # 1/s, turn rate per radian of heading error
+    memory: 1.0               # s a tracked neighbour position is trusted for seeking
+    standoff: 125.0           # mm from the tail where the seeker lines up before docking
+    keep_ratio: 0.7           # the current goal counts as this much nearer than it is
+    hold_range: 200.0         # mm; a tail asks its chain to stand still for a seeker this close
+    turn_back: 1              # 1: a head turns back along its chain when a follower sees a higher-ranked chain
+  dock:
+    window: 35.0              # deg off the middle of the tail's acceptance zone that still starts a dock
+    align: 6.0                # deg heading error allowed before driving in
+    speed: 30.0               # mm/s
+    max_turn_rate: 20.0       # deg/s of correction while driving in
+    timeout: 4.0              # s driving in without a LINK_ACK before the attempt has failed
+    attempts: 3               # failed attempts before backing off
+    backoff_distance: 150.0   # mm
+  follow:
+    hall_target: 0.75         # hall reading a follower keeps on the hub ahead (gap about 1.5 mm)
+    gain: 120.0               # mm/s per unit of hall error
+    turn_gain: 4.0            # 1/s, turns the base under the tongue
+    lead_speed: 70.0          # mm/s, a head with robots behind it
+    slack_stop: 0.25          # lowest hall reading along the chain at which the head stops
+    slack_full: 0.5           # ... and above which it drives at full lead speed
 
 bridge:
   max_unsupported: 2          # robots allowed in the air at once

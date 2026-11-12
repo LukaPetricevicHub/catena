@@ -7,13 +7,27 @@ import math
 import random
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 from sim import corelib
 from sim.sensors import BodySensors, FlashModel
 from sim.world import Robot, World
 
 Pose = tuple[float, float, float]
+
+
+class Debug(NamedTuple):
+    """One robot's catena_debug_t from the latest tick."""
+
+    state: int
+    detail: int
+    index: int
+    chain_size: int
+    neighbours: int
+    chain_id: int
+    ahead: int
+    behind: int
+    target: int
 
 
 @dataclass
@@ -60,7 +74,9 @@ class Swarm:
         self.cores: list[corelib.Core] = []
         self.body: list[BodySensors] = []
         self.inbox: dict[int, list[Delivery]] = {}
-        self.debug: dict[int, tuple[int, int, int, int, int]] = {}
+        self.debug: dict[int, Debug] = {}
+        self.stop = False  # a scenario sets this to end the run early
+        self.monitor: Any = None
         self.path_mm: list[float] = []
         self.ticks = 0
         self.min_edge_mm = math.inf
@@ -113,7 +129,7 @@ class Swarm:
 
     def run(self, duration_s: float) -> None:
         end_step = round(duration_s * self.physics_hz)
-        while self.world.steps < end_step:
+        while self.world.steps < end_step and not self.stop:
             self.advance()
 
     def tick(self) -> None:
@@ -150,7 +166,9 @@ class Swarm:
             out = core.step()
             world.set_wheels(r, out.wheel_left_mm_s, out.wheel_right_mm_s)
             dbg = out.debug
-            self.debug[r.id] = (dbg.state, dbg.detail, dbg.index, dbg.chain_size, dbg.neighbours)
+            self.debug[r.id] = Debug(dbg.state, dbg.detail, dbg.index, dbg.chain_size,
+                                     dbg.neighbours, dbg.chain_id, dbg.ahead, dbg.behind,
+                                     dbg.target)
             if out.flash:
                 data = bytes(out.flash_data[: out.flash_len])
                 new.append(Flash(r.id, now + out.flash_delay_us * 1e-6, data, poses))
@@ -174,6 +192,7 @@ class Swarm:
                 self.stats["dropped"] += 1
                 continue
             self.inbox.setdefault(t, []).append(Delivery(src, data))
+            self.stats["delivered"] += 1
 
     def _resolve_flashes(self, new: list[Flash]) -> None:
         """Deliver last tick's flashes, now that every flash that could collide is known."""
