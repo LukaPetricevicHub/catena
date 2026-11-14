@@ -263,3 +263,26 @@ It never drives forward over a void and never reverses (no sensor at the rear: r
 along an edge made one fall). Its push, fixed in the shape frame when the edge is first
 seen and held `shape.edge_hold`, is passed along the chain at `shape.push_decay` per robot.
 Known gap: a robot pushed sideways toward an edge by its chain does not see the edge.
+
+## D39 A shape takes hold from the head; robots behind keep following until the one ahead holds it (14 Nov 2026)
+
+Robots get the stroke at different moments. One that stopped to hold the shape while its
+neighbour still drove in FOLLOW tore the link between them. A robot that does not hold the
+shape sends "unknown" as its turning error, and a robot whose neighbour ahead says so keeps
+following it. D38 changed with it: the edge direction is averaged from the headings at
+which the front sensors see the void, and the robot steers away with forward motion blocked.
+
+## D40 A twist ramps up over 2 s, backs off on a stretched link, and each robot makes up the distance it owes (14 Nov 2026)
+
+Bases must turn into the motion first. Without the ramp, robots already pointing the right
+way set off at full speed and tore links; without the catch-up, the ring arrived 50 mm
+short of 400. Each robot counts the commanded travel it has not driven (`shape.twist_catchup`,
+capped at the shape correction speed). The rotate rate has no such catch-up yet.
+
+## D41 The phone page talks to the simulator through sim/bridge.py; scenarios take a variant (14 Nov 2026)
+
+`python -m sim.runner <scenario> --serve` serves `ui/` on port 8000 and a websocket on 8765
+(websockets is already a dependency). The lowest robot id on the table stands for "the
+robot the phone joined". Scenario names may carry a variant, `shape:ring`; `play` is a
+linked chain that waits for the phone. The server resamples the stroke again, so a page
+that sends raw points still works.

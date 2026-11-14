@@ -103,9 +103,9 @@ void Robot::step(Hal& hal) {
   }
   push_out_x_ = push_out_y_ = 0.0f;
   has_turn_ = false;
-  e_self_ = 0.0f;
+  e_self_ = kUnknown;  // what my neighbours hear unless I hold the shape
   if (shape_ready()) {
-    shape(hal);
+    shape(hal, dt_s);
   } else if (chain_.ahead() != CATENA_NONE) {
     follow(hal);
   } else {
@@ -563,7 +563,7 @@ const Neighbour* Robot::own_tail() const {
   return nullptr;
 }
 
-void Robot::shape(Hal& hal) {
+void Robot::shape(Hal& hal, float dt_s) {
   holding_ = false;
   goal_ = target_ = CATENA_NONE;
   phase_ = CATENA_WANDER_CRUISE;
@@ -576,6 +576,14 @@ void Robot::shape(Hal& hal) {
   const uint8_t f = fore();
   const bool head_end = chain_.ahead() == CATENA_NONE;
   const uint64_t stale_us = to_us(p_.link_timeout_s);
+  const float e_fore = now_us_ - e_fore_us_ <= stale_us ? e_fore_ : 0.0f;
+  if (chain_.ahead() != CATENA_NONE && unknown(e_fore)) {
+    // The robot ahead does not hold the shape yet (the stroke has not reached it, or it
+    // cannot measure its angle): keep following it. The shape takes hold from the head.
+    follow(hal);
+    return;
+  }
+  e_self_ = 0.0f;
   const bool has_aft = aft_id_ != CATENA_NONE && now_us_ - aft_us_ <= stale_us &&
                        static_cast<float>(aft_samples_) >= p_.shape_offset_samples;
   const float aft_rad = wrap_pi(aft_tongue_rad_ + kPi - psi_rad_ - aft_offset_rad_);
@@ -593,10 +601,18 @@ void Robot::shape(Hal& hal) {
   // Edge push: mine while a sensor is over the edge, else what a neighbour passes on.
   const bool at_edge = !hal.table_left() || !hal.table_right();
   if (at_edge && framed) {
-    // Away from the edge is backward as I met it. Fixed then: I turn in place afterwards.
-    if (now_us_ >= edge_until_us_) {
-      edge_push_x_ = -p_.shape_edge_push_mm_s * cr;
-      edge_push_y_ = p_.shape_edge_push_mm_s * sr;
+    // The edge lies where my front sensors see the void: ahead, or ahead and to one side.
+    // I may have met it at a slant or been pushed onto it sideways, so the direction is
+    // averaged over every heading at which the void shows while I turn.
+    const float side = hal.table_left() ? -0.5f : (hal.table_right() ? 0.5f : 0.0f);
+    const float toward = side - rho;  // direction of the void in the shape frame
+    const float keep = now_us_ >= edge_until_us_ ? 0.0f : 0.8f;
+    float ex = keep * -edge_push_x_ / p_.shape_edge_push_mm_s + (1.0f - keep) * std::cos(toward);
+    float ey = keep * -edge_push_y_ / p_.shape_edge_push_mm_s + (1.0f - keep) * std::sin(toward);
+    const float length = std::hypot(ex, ey);
+    if (length > 1e-3f) {
+      edge_push_x_ = -p_.shape_edge_push_mm_s * ex / length;
+      edge_push_y_ = -p_.shape_edge_push_mm_s * ey / length;
     }
     edge_until_us_ = now_us_ + to_us(p_.shape_edge_hold_s);
   }
@@ -607,17 +623,13 @@ void Robot::shape(Hal& hal) {
     push_out_x_ = p_.shape_push_decay * push_in_x_;
     push_out_y_ = p_.shape_push_decay * push_in_y_;
   }
-  if (at_edge) {
-    // Never forward over a void, and never backward either: there is no sensor at the
-    // rear, and a robot parallel to an edge would reverse along it (it did, and fell).
-    // Turn in place toward the table and let the push move the shape.
-    shape_detail_ = CATENA_SHAPE_EDGE;
-    drive(hal, 0.0f, hal.table_right() ? -p_.wander_spin_rate_rad_s : p_.wander_spin_rate_rad_s);
-    return;
-  }
+  // Never forward over a void, and never backward either: there is no sensor at the rear,
+  // and a robot parallel to an edge would reverse along it (it did, and fell). The base
+  // keeps turning toward its velocity, which the push now points away from the edge.
+  if (at_edge) shape_detail_ = CATENA_SHAPE_EDGE;
 
   const bool ring_wanted = poly_.closed && n >= 3;
-  if (closure_ != CATENA_NONE && !ring_wanted && head_end) {
+  if (closure_ != CATENA_NONE && !ring_wanted && head_end && !at_edge) {
     // The new shape is open: line the base up with the tongue and pull it out.
     shape_detail_ = CATENA_SHAPE_OPENING;
     const bool lined_up = std::fabs(ring_rad_) < p_.dock_align_rad;
@@ -626,7 +638,7 @@ void Robot::shape(Hal& hal) {
                  p_.wander_spin_rate_rad_s));
     return;
   }
-  if (ring_wanted && head_end && closure_ == CATENA_NONE) {
+  if (ring_wanted && head_end && closure_ == CATENA_NONE && !at_edge) {
     // A closed shape closes itself: the head docks onto its own tail once it is near.
     // ... and lies where the shape puts it: ends that only pass each other do not link.
     const Neighbour* tail = own_tail();
@@ -659,7 +671,6 @@ void Robot::shape(Hal& hal) {
   has_turn_ = f != CATENA_NONE && has_aft && !opening;
   e_self_ = has_turn_ ? wrap_pi(std::atan2(ux * wy - uy * wx, ux * wx + uy * wy) - poly_.turn_rad[i])
                       : 0.0f;
-  const float e_fore = now_us_ - e_fore_us_ <= stale_us ? e_fore_ : 0.0f;
   const float e_aft = now_us_ - aft_us_ <= stale_us ? e_aft_ : 0.0f;
   // A robot between two others that does not know its angle yet says so, and it and its
   // neighbours wait: a made-up zero would send them all off against each other.
@@ -685,9 +696,7 @@ void Robot::shape(Hal& hal) {
   // much. Never open one: that would turn the base right round, again and again.
   if (f != CATENA_NONE) {
     const float hall_ahead = chain_.ahead() != CATENA_NONE ? chain_.ahead_hall() : closure_hall_;
-    const float feed = chain_.ahead() != CATENA_NONE ? std::fmax(chain_.ahead_speed_mm_s(), 0.0f)
-                                                     : 0.0f;
-    const float gap = clampf(feed + p_.follow_gain_mm_s * (p_.follow_hall_target - hall_ahead),
+    const float gap = clampf(p_.follow_gain_mm_s * (p_.follow_hall_target - hall_ahead),
                              0.0f, p_.follow_lead_speed_mm_s);
     vx += gap * -ux;
     vy += gap * -uy;
@@ -709,16 +718,41 @@ void Robot::shape(Hal& hal) {
     }
     const float wz = clampf(static_cast<float>(twist_[2]) * 0.01f, -p_.shape_twist_max_rate_rad_s,
                             p_.shape_twist_max_rate_rad_s);
-    const float sx = tx - wz * poly_.y_mm[i] + push_out_x_;
-    const float sy = ty + wz * poly_.x_mm[i] + push_out_y_;
+    // Travel: turning the base toward the motion costs time, so each robot keeps count of
+    // the distance it owes along the commanded direction and makes it up.
+    const float want = std::hypot(tx, ty);
+    if (want > 0.0f) {
+      owed_x_ = tx / want;
+      owed_y_ = ty / want;
+    }
+    const float driven = last_v_mm_s_ * (cr * owed_x_ - sr * owed_y_);  // along it, last step
+    if (want > 0.0f || owed_mm_ != 0.0f) {
+      owed_mm_ = clampf(owed_mm_ + (want - driven) * dt_s, -p_.pitch_mm, p_.pitch_mm);
+    }
+    if (want == 0.0f && std::fabs(owed_mm_) < 1.0f) owed_mm_ = 0.0f;
+    // No faster than a shape correction: robots at different speeds tear links apart.
+    const float catchup = clampf(p_.shape_twist_catchup_per_s * owed_mm_,
+                                 -p_.shape_max_speed_mm_s, p_.shape_max_speed_mm_s);
+    if (owed_mm_ != 0.0f) state_ = CATENA_STATE_MOVE;
+    // Set off gently and no faster than my links keep up: some bases are still turning
+    // into the motion while others already drive.
+    ramp_ = want > 0.0f ? std::fmin(1.0f, ramp_ + dt_s / p_.shape_twist_ramp_s) : 0.0f;
+    float slack = f != CATENA_NONE
+        ? (chain_.ahead() != CATENA_NONE ? chain_.ahead_hall() : closure_hall_) : 1.0f;
+    if (aft_id_ != CATENA_NONE) slack = std::fmin(slack, hall_);
+    const float keep = clampf((slack - p_.follow_slack_stop) /
+                              (p_.follow_slack_full - p_.follow_slack_stop), 0.0f, 1.0f);
+    const float along = keep * (ramp_ * want + catchup);
+    const float sx = along * owed_x_ - wz * poly_.y_mm[i] + push_out_x_;
+    const float sy = along * owed_y_ + wz * poly_.x_mm[i] + push_out_y_;
     vx += cr * sx - sr * sy;
     vy += sr * sx + cr * sy;
   }
-  shape_drive(hal, vx, vy);
+  shape_drive(hal, vx, vy, !at_edge);
 }
 
 // The base turns toward the velocity and drives, slower while misaligned (spec 7.5).
-void Robot::shape_drive(Hal& hal, float vx_mm_s, float vy_mm_s) {
+void Robot::shape_drive(Hal& hal, float vx_mm_s, float vy_mm_s, bool forward_ok) {
   const float speed = std::hypot(vx_mm_s, vy_mm_s);
   if (speed < p_.shape_min_speed_mm_s) {
     drive(hal, 0.0f, 0.0f);
@@ -726,7 +760,7 @@ void Robot::shape_drive(Hal& hal, float vx_mm_s, float vy_mm_s) {
   }
   const float error = std::atan2(vy_mm_s, vx_mm_s);
   const float forward = clampf(std::cos(error), 0.0f, 1.0f);
-  drive(hal, speed * forward * forward,
+  drive(hal, forward_ok ? speed * forward * forward : 0.0f,
         clampf(p_.shape_turn_gain_per_s * error, -p_.wander_spin_rate_rad_s,
                p_.wander_spin_rate_rad_s));
 }

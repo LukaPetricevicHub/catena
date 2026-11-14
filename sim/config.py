@@ -123,6 +123,8 @@ CORE_FIELDS: tuple[CoreField, ...] = (
     CoreField("shape_edge_hold_s", "behaviour.shape.edge_hold"),
     CoreField("shape_push_decay", "behaviour.shape.push_decay"),
     CoreField("shape_twist_max_speed_mm_s", "behaviour.shape.twist_max_speed"),
+    CoreField("shape_twist_ramp_s", "behaviour.shape.twist_ramp"),
+    CoreField("shape_twist_catchup_per_s", "behaviour.shape.twist_catchup"),
     CoreField("shape_twist_max_rate_rad_s", "behaviour.shape.twist_max_rate", RAD_PER_DEG),
     CoreField("follow_hall_target", "behaviour.follow.hall_target"),
     CoreField("follow_gain_mm_s", "behaviour.follow.gain"),

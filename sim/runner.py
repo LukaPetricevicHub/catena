@@ -12,6 +12,7 @@ import importlib
 import json
 import os
 import sys
+import time
 from concurrent.futures import ProcessPoolExecutor
 from types import ModuleType
 from typing import Any
@@ -94,16 +95,35 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--speed", type=float, default=1.0, help="viewer: sim seconds per second")
     parser.add_argument("--exit-after", type=float, help="viewer: close after this sim time")
     parser.add_argument("--screenshot", help="viewer: save a PNG when it closes")
+    parser.add_argument("--serve", action="store_true",
+                        help="serve the phone page (ui/) and take its strokes and twists")
     args = parser.parse_args(argv)
 
     overrides = parse_overrides(args.set)
     scenario, swarm = build(args.scenario, args.seed, overrides)
     duration = args.duration if args.duration is not None else scenario.DURATION_S
+    if args.serve:
+        from sim.bridge import Bridge
+
+        bridge = Bridge(swarm)
+        bridge.start()
+        print(f"Phone page: http://<this computer's address>:{bridge.http_port}/  "
+              f"(on this computer: http://localhost:{bridge.http_port}/)", file=sys.stderr)
     if args.viewer:
         from sim.viewer import Viewer
 
         Viewer(swarm, title=f"Catena: {args.scenario}, seed {args.seed}").run(
             duration, speed=args.speed, exit_after=args.exit_after, screenshot=args.screenshot)
+    elif args.serve:
+        start = time.monotonic()  # no viewer: keep the simulator at the speed of the clock
+        try:
+            while swarm.world.time_s < duration and not swarm.stop:
+                swarm.advance()
+                ahead = swarm.world.time_s - (time.monotonic() - start)
+                if ahead > 0:
+                    time.sleep(ahead)
+        except KeyboardInterrupt:
+            pass
     else:
         swarm.run(duration)
     out = result(args.scenario, args.seed, scenario, swarm)

@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Catena</title>
+<style>
+  :root { --bg: #f3f5f4; --ink: #17211f; --soft: #5d6b68; --line: #c9d2cf; --card: #ffffff;
+          --accent: #0e7a63; --accent-ink: #ffffff; --warn: #b4491f; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111817; --ink: #e8efed; --soft: #9aa8a4; --line: #2c3936; --card: #1a2321;
+            --accent: #3fc3a3; --accent-ink: #06231c; --warn: #f0895a; }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+               font: 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { padding: 12px 16px 24px; max-width: 460px; margin: 0 auto; touch-action: manipulation; }
+  h1 { font-size: 18px; margin: 0 0 2px; letter-spacing: 0.02em; }
+  #status { color: var(--soft); font-size: 14px; min-height: 40px; font-variant-numeric: tabular-nums; }
+  #status b { color: var(--ink); font-weight: 600; }
+  #status.off { color: var(--warn); }
+  .label { font-size: 13px; color: var(--soft); margin: 14px 0 6px; }
+  canvas { display: block; background: var(--card); border: 1px solid var(--line);
+           border-radius: 14px; touch-action: none; }
+  #pad { width: 100%; aspect-ratio: 1; }
+  .row { display: flex; gap: 8px; margin-top: 8px; }
+  button { flex: 1; min-height: 48px; font: inherit; font-weight: 600; color: var(--ink);
+           background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+  button:active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  #drive { display: flex; gap: 16px; align-items: center; }
+  #stick { width: 168px; height: 168px; border-radius: 50%; flex: none; }
+  #turn { flex: 1; min-width: 0; }
+  input[type=range] { width: 100%; height: 44px; accent-color: var(--accent); }
+  #turn small { display: flex; justify-content: space-between; color: var(--soft); font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Catena</h1>
+<div id="status" class="off">Not connected</div>
+
+<div class="label">Draw one stroke. End where you started for a closed shape.</div>
+<canvas id="pad" width="600" height="600" aria-label="Drawing pad"></canvas>
+<div class="row">
+  <button data-shape="line">Line</button>
+  <button data-shape="ring">Ring</button>
+  <button data-shape="u">U</button>
+  <button id="release">Release</button>
+</div>
+
+<div class="label">Move the shape. The stick pushes it, the slider turns it.</div>
+<div id="drive">
+  <canvas id="stick" width="336" height="336" aria-label="Joystick"></canvas>
+  <div id="turn">
+    <input id="rotate" type="range" min="-1" max="1" step="0.05" value="0" aria-label="Rotate">
+    <small><span>turn right</span><span>turn left</span></small>
+  </div>
+</div>
+
+<script>
+"use strict";
+// Spec 7.4: a stroke is 32 points by arc length, closed if its ends are within 10% of its
+// length. Spec 10: one stroke, three buttons, a joystick with a rotate slider, a status line.
+const POINTS = 32, CLOSE_FRACTION = 0.10, TWIST_HZ = 10;
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+// ---- stroke maths (pure functions) ----
+function pathLength(pts) {
+  let s = 0;
+  for (let i = 1; i < pts.length; i++) s += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  return s;
+}
+function isClosed(pts) {
+  const a = pts[0], b = pts[pts.length - 1];
+  return Math.hypot(a[0] - b[0], a[1] - b[1]) < CLOSE_FRACTION * pathLength(pts);
+}
+function resample(pts, closed) {
+  const path = closed ? pts.concat([pts[0]]) : pts;
+  const total = pathLength(path), parts = closed ? POINTS : POINTS - 1, out = [];
+  let seg = 1, before = 0, len = Math.hypot(path[1][0] - path[0][0], path[1][1] - path[0][1]);
+  for (let k = 0; k < POINTS; k++) {
+    const s = total * k / parts;
+    while (seg < path.length - 1 && before + len < s) {
+      before += len; seg++;
+      len = Math.hypot(path[seg][0] - path[seg - 1][0], path[seg][1] - path[seg - 1][1]);
+    }
+    const t = len > 0 ? Math.min(1, (s - before) / len) : 0;
+    out.push([path[seg - 1][0] + t * (path[seg][0] - path[seg - 1][0]),
+              path[seg - 1][1] + t * (path[seg][1] - path[seg - 1][1])]);
+  }
+  return out;
+}
+const PRESETS = {
+  line: () => [[0, 0], [1, 0]],
+  ring: () => Array.from({ length: 48 }, (_, i) => [Math.cos(i / 48 * 2 * Math.PI), Math.sin(i / 48 * 2 * Math.PI)]),
+  u: () => {
+    const p = [[-0.5, 1], [-0.5, 0]];
+    for (let i = 1; i <= 24; i++) p.push([-0.5 * Math.cos(i / 24 * Math.PI), -0.5 * Math.sin(i / 24 * Math.PI)]);
+    p.push([0.5, 1]);
+    return p;
+  },
+};
+
+// ---- connection ----
+const statusEl = document.getElementById("status");
+const wsUrl = new URLSearchParams(location.search).get("ws") ||
+  `ws://${location.hostname || "localhost"}:8765`;
+let ws = null;
+function connect() {
+  ws = new WebSocket(wsUrl);
+  ws.onopen = () => { statusEl.className = ""; statusEl.textContent = "Connected"; };
+  ws.onclose = () => {
+    statusEl.className = "off"; statusEl.textContent = "Not connected, trying again";
+    setTimeout(connect, 1000);
+  };
+  ws.onmessage = ev => {
+    let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+    if (m.type !== "status") return;
+    const err = m.shape_error_mm == null ? "no shape" : `shape error <b>${m.shape_error_mm.toFixed(1)} mm</b>`;
+    statusEl.innerHTML = `robots linked <b>${m.linked}</b> of ${m.robots} &middot; chain count <b>${m.count}</b><br>` +
+      `${err}${m.moving ? " &middot; moving" : ""}`;
+  };
+}
+function send(message) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message)); }
+function sendShape(pts, closed) { shown = { pts, closed }; drawPad(); send({ type: "shape", points: pts, closed }); }
+
+// ---- drawing pad ----
+const pad = document.getElementById("pad"), pc = pad.getContext("2d");
+let raw = null, shown = null;
+function padPoint(ev) {  // canvas pixels, y up
+  const r = pad.getBoundingClientRect();
+  return [(ev.clientX - r.left) * pad.width / r.width, pad.height - (ev.clientY - r.top) * pad.height / r.height];
+}
+function trace(ctx, pts, closed, h) {
+  ctx.beginPath();
+  pts.forEach((p, i) => i ? ctx.lineTo(p[0], h - p[1]) : ctx.moveTo(p[0], h - p[1]));
+  if (closed) ctx.closePath();
+  ctx.stroke();
+}
+function fitToPad(pts) {  // shown shapes fill the pad whatever units they came in
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const k = 0.7 * pad.width / Math.max(x1 - x0, y1 - y0, 1e-9);
+  return pts.map(p => [pad.width / 2 + (p[0] - (x0 + x1) / 2) * k, pad.height / 2 + (p[1] - (y0 + y1) / 2) * k]);
+}
+function drawPad() {
+  pc.clearRect(0, 0, pad.width, pad.height);
+  pc.lineJoin = pc.lineCap = "round";
+  if (shown) {
+    const pts = fitToPad(shown.pts);
+    pc.strokeStyle = css("--accent"); pc.lineWidth = 10; trace(pc, pts, shown.closed, pad.height);
+    pc.fillStyle = css("--accent");
+    pc.beginPath(); pc.arc(pts[0][0], pad.height - pts[0][1], 16, 0, 7); pc.fill();  // the head's end
+  }
+  if (raw) { pc.strokeStyle = css("--soft"); pc.lineWidth = 6; trace(pc, raw, false, pad.height); }
+}
+pad.addEventListener("pointerdown", ev => { pad.setPointerCapture(ev.pointerId); raw = [padPoint(ev)]; drawPad(); });
+pad.addEventListener("pointermove", ev => {
+  if (!raw) return;
+  const p = padPoint(ev), q = raw[raw.length - 1];
+  if (Math.hypot(p[0] - q[0], p[1] - q[1]) > 4) { raw.push(p); drawPad(); }
+});
+function endStroke() {
+  const pts = raw; raw = null;
+  if (pts && pts.length > 1 && pathLength(pts) > 40) {
+    const closed = isClosed(pts);
+    sendShape(resample(pts, closed), closed);
+  } else drawPad();
+}
+pad.addEventListener("pointerup", endStroke);
+pad.addEventListener("pointercancel", endStroke);
+document.querySelectorAll("button[data-shape]").forEach(b => b.addEventListener("click", () => {
+  const pts = PRESETS[b.dataset.shape](), closed = b.dataset.shape === "ring";
+  sendShape(resample(pts, closed), closed);
+}));
+document.getElementById("release").addEventListener("click", () => { shown = null; drawPad(); send({ type: "release" }); });
+
+// ---- joystick and rotate slider ----
+const stick = document.getElementById("stick"), sc = stick.getContext("2d"), rotate = document.getElementById("rotate");
+const twist = { vx: 0, vy: 0, wz: 0 };
+let held = false, sentZero = true;
+function drawStick() {
+  const w = stick.width, r = w / 2;
+  sc.clearRect(0, 0, w, w);
+  sc.strokeStyle = css("--line"); sc.lineWidth = 3;
+  sc.beginPath(); sc.arc(r, r, r * 0.62, 0, 7); sc.stroke();
+  sc.fillStyle = held ? css("--accent") : css("--soft");
+  sc.beginPath(); sc.arc(r + twist.vx * r * 0.62, r - twist.vy * r * 0.62, r * 0.3, 0, 7); sc.fill();
+}
+function stickMove(ev) {
+  const b = stick.getBoundingClientRect(), r = b.width / 2 * 0.62;
+  let x = (ev.clientX - b.left - b.width / 2) / r, y = -(ev.clientY - b.top - b.height / 2) / r;
+  const m = Math.hypot(x, y);
+  if (m > 1) { x /= m; y /= m; }
+  twist.vx = x; twist.vy = y; drawStick();
+}
+stick.addEventListener("pointerdown", ev => { stick.setPointerCapture(ev.pointerId); held = true; stickMove(ev); });
+stick.addEventListener("pointermove", ev => { if (held) stickMove(ev); });
+function stickEnd() { held = false; twist.vx = twist.vy = 0; drawStick(); }
+stick.addEventListener("pointerup", stickEnd);
+stick.addEventListener("pointercancel", stickEnd);
+rotate.addEventListener("input", () => { twist.wz = parseFloat(rotate.value); });
+function rotateEnd() { rotate.value = 0; twist.wz = 0; }  // the slider springs back
+rotate.addEventListener("pointerup", rotateEnd);
+rotate.addEventListener("change", rotateEnd);
+setInterval(() => {  // a steady stream while something is held, then one zero
+  const zero = twist.vx === 0 && twist.vy === 0 && twist.wz === 0;
+  if (!zero || !sentZero) send({ type: "twist", vx: twist.vx, vy: twist.vy, wz: twist.wz });
+  sentZero = zero;
+}, 1000 / TWIST_HZ);
+
+drawPad(); drawStick(); connect();
+</script>
+</body>
+</html>

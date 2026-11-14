@@ -8,9 +8,10 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+import numpy as np
 import pygame
 
-from sim import corelib
+from sim import corelib, shapes
 from sim.swarm import Swarm
 
 MARGIN_MM = 60.0
@@ -23,7 +24,9 @@ DETAIL_COLOURS = {  # wander sub-state
     3: (65, 105, 225),  # turn
     4: (150, 150, 150),  # hold
 }
-STATE_COLOURS = {2: (230, 90, 160), 3: (250, 200, 40), 4: (240, 240, 240)}  # seek, dock, follow
+# seek, dock, follow, shape, move
+STATE_COLOURS = {2: (230, 90, 160), 3: (250, 200, 40), 4: (240, 240, 240),
+                 5: (70, 200, 170), 6: (90, 160, 250)}
 TABLE = (236, 230, 214)
 FLOOR = (52, 58, 56)
 BASE = (88, 98, 95)
@@ -31,6 +34,7 @@ RING = (20, 135, 111)
 HUB = (170, 180, 181)
 LINK = (230, 120, 40)
 TEXT = (24, 33, 31)
+TARGET = (120, 110, 200)  # the drawn shape
 
 
 class Viewer:
@@ -110,6 +114,7 @@ class Viewer:
         for link in world.links:
             pygame.draw.line(self.screen, LINK, self.px(*link.tongue.position),
                              self.px(*link.hub.position), max(2, round(6 * s)))
+        self.draw_target()
         for r in world.robots:
             if not r.fallen:
                 self.draw_robot(r)
@@ -120,6 +125,22 @@ class Viewer:
                f"flashes spoiled {swarm.stats['spoiled']}/{swarm.stats['flashes']}")
         bar_y = self.screen.get_height() - 24
         self.screen.blit(self.hud_font.render(hud, True, (235, 240, 238)), (8, bar_y))
+
+    def draw_target(self) -> None:
+        """The drawn shape, laid over the chain where it fits best."""
+        swarm = self.swarm
+        chain = sorted((r for r in swarm.alive() if r.id in swarm.debug),
+                       key=lambda r: swarm.debug[r.id].index)
+        if swarm.stroke is None or len(chain) < 2 or any(
+                swarm.debug[r.id].chain_size != len(chain) for r in chain):
+            return
+        polygon = shapes.target_polygon(swarm.stroke, len(chain), swarm.cfg["geometry"]["pitch"])
+        here = np.array([[r.position.x, r.position.y] for r in chain])
+        fit = shapes.fit(here, polygon)
+        c, s = math.cos(fit.rotation_rad), math.sin(fit.rotation_rad)
+        pts = [self.px(fit.centroid[0] + c * x - s * y, fit.centroid[1] + s * x + c * y)
+               for x, y in polygon]
+        pygame.draw.lines(self.screen, TARGET, swarm.stroke.closed, pts, 2)
 
     def draw_robot(self, r) -> None:
         s = self.scale

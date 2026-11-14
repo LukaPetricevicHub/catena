@@ -2,6 +2,71 @@
 
 Updated at the end of every session. Newest entry on top.
 
+## 14 Nov 2026: M3 shapes, moving and phone page: acceptance lines met in simulation
+
+Branch `m3-shapes` (not pushed, not merged; CI has not run on it).
+
+Done
+- core: `core/src/shape.{h,cpp}` (stroke to polygon and turning angles); in the robot the
+  stroke gossip, the local rule of spec 7.4, ring closing and opening, twist with ramp and
+  catch-up, edge push; states `SHAPE` and `MOVE`; C API `catena_set_shape`,
+  `catena_set_twist`. Decisions D33 to D41.
+- sim: `sim/shapes.py` (strokes, target polygon, fit), scenarios `shape:line|ring|u|s`,
+  `twist`, `play`; `sim/bridge.py` (websocket and web server); `--serve` in the runner; the
+  viewer draws the target shape. The simulated gyro now reports the mean rate per tick (D37).
+- ui: `ui/index.html` (pad, Line/Ring/U/Release, joystick, rotate slider, status line).
+- Try it: `make sim S=shape:ring`, `make sim S=twist`, `make sim S=play ARGS=--serve` and
+  open `http://localhost:8000/`.
+
+Verified how (all simulated; nothing has run on hardware)
+- `make test`: 36 C++ test cases, 61 pytest tests pass (32 s). `make test-full`: 61 pass
+  (113 s). `make lint` clean.
+- Line 1, mean vertex error under 12 mm after 60 s, 5 seeds each: line 1.3 to 3.9 mm,
+  ring 1.1 to 2.1, U 2.4 to 4.7, S 2.4 to 4.9. Under 12 mm from about 13 s (line), 14 s (S),
+  31 s (U), 40 s (ring). Over 30 seeds each: 30 of 30 for all four, no fall, no broken link.
+- Line 2, the ring closes itself: in all 5 seeds, 35 to 42 s after the stroke; the scenario
+  only hands over the stroke. Open shapes stay open.
+- Line 3, twist: a ring told to go 400 mm along shape x arrives 0.5 to 17.5 mm off (40
+  allowed), worst shape error on the way 3.6 to 10.0 mm (15 allowed), 5 seeds; 20 of 20
+  over 20 seeds. The script first turns the ring with the rotate command until shape x lies
+  along the table, as a person at the phone would: 400 mm does not fit across it.
+- Line 4, phone: a stroke sent over a real websocket is held by all twelve robots within
+  2 s of simulated time (0.5 s measured), a second stroke replaces it, the joystick message
+  sets the chain moving, malformed messages change nothing (`tests/test_m3_phone.py`).
+- Line 5, shape error against IR bearing noise, mean (worst) of 5 seeds in mm:
+
+  | sigma | line | ring | U | S |
+  | --- | --- | --- | --- | --- |
+  | 5 deg | 1.8 (3.0) | 1.0 (1.6) | 2.3 (4.1) | 1.6 (2.9) |
+  | 10 deg | 2.0 (3.9) | 1.6 (2.1) | 3.4 (4.7) | 3.5 (4.9) |
+  | 20 deg | 5.7 (9.4) | 1.6 (2.1) | 5.7 (9.6) | 3.9 (6.6) |
+
+- M2 after these changes: 48 of 50 seeds, no falls.
+
+Open problems
+- **The page has not been opened in a browser.** Its protocol is tested, its stroke maths
+  was checked once by hand in Node; drawing, touch and layout are untried. Please try it.
+- **A robot needs about 2 s of flash bearings before it can hold a shape** (D34). Tests
+  hand the stroke to a chain that has been linked for 3 s. Sooner, the shape waits.
+- **Edges.** A robot pushed sideways toward an edge by its chain does not see the edge
+  (sensors at the front only). Two falls of this kind were seen and their triggers fixed
+  (blind reverse, push pointing along the edge); the gap itself remains. Shape scenarios
+  start at least 150 mm from the edges; 4 of 90 runs that reached an edge anyway failed
+  before the last fix and pass after it. No acceptance test covers shapes at an edge.
+- **Slow.** Corrections are capped at 20 mm/s (D36), so a ring takes about 40 s. Bases
+  turn in place toward every small velocity; a real gearmotor will not drive 6 mm/s smoothly.
+- The shape rule waits on one gyro model (D37): the firmware must hand core the mean rate.
+- The rotate command has no catch-up and no test of its own beyond its use in `twist`.
+- The new frames (SHAPE, CLOSE, the bytes added to LINK_ACK and LINK_UP) and the traced
+  bit from M2 have no C++ unit tests; only the shape maths has. Scenario tests cover them.
+- An open shape after a ring (the head pulling out of its tail) is implemented but has no test.
+- Still true from below: lead speed 70 mm/s, loosened M1 movement test, flash collisions,
+  things not modelled, all parameters tuned in simulation only.
+
+Next
+- Push `m3-shapes`, let CI run, merge.
+- Then M4 Lasso and heal (spec 7.6, 7.8).
+
 ## 12 Nov 2026 (later): M2 acceptance lines all met in simulation (48 of 50 seeds)
 
 Branch `m2-chain-forming`, merged into `main`; CI green on Ubuntu and macOS (`make test`,

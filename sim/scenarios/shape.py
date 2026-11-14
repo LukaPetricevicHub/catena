@@ -19,7 +19,9 @@ from sim import corelib, shapes
 from sim.swarm import Swarm
 
 HOLD_LIMIT_S = 5.0  # the chain is held in the hand at most this long
-LEAD_IN_S = 1.0  # on the table this long before the stroke is handed over
+# On the table this long before the stroke is handed over. A robot needs about 2 s of flash
+# bearings of the robot behind it before it can hold a shape (decision D34).
+LEAD_IN_S = 3.0
 SETTLE_S = 60.0
 ERROR_LIMIT_MM = 12.0
 DURATION_S = HOLD_LIMIT_S + LEAD_IN_S + SETTLE_S  # upper bound; the monitor stops the run

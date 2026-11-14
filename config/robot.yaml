@@ -135,6 +135,8 @@ behaviour:
     edge_hold: 1.0            # s a robot keeps pushing away after its sensors last saw the edge
     push_decay: 0.8           # share of a neighbour's push that a robot passes on
     twist_max_speed: 60.0     # mm/s, joystick at full deflection
+    twist_ramp: 2.0           # s from rest to the commanded speed, while the bases turn into the motion
+    twist_catchup: 1.0        # 1/s; a robot behind on the commanded travel adds this share of the distance owed
     twist_max_rate: 20.0      # deg/s, rotate slider at full deflection
   follow:
     hall_target: 0.75         # hall reading a follower keeps on the hub ahead (gap about 1.5 mm)

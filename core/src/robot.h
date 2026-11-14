@@ -54,8 +54,8 @@ class Robot {
   void announce(Hal& hal);
   void lead(Hal& hal, float dt_s);
   void follow(Hal& hal);
-  void shape(Hal& hal);
-  void shape_drive(Hal& hal, float vx_mm_s, float vy_mm_s);
+  void shape(Hal& hal, float dt_s);
+  void shape_drive(Hal& hal, float vx_mm_s, float vy_mm_s, bool forward_ok);
   void shape_frame(const catena_rx_t& rx);
   void shape_gossip(Hal& hal);
   bool shape_ready();
@@ -160,6 +160,10 @@ class Robot {
   uint64_t edge_until_us_ = 0;
   float push_out_x_ = 0.0f;
   float push_out_y_ = 0.0f;
+  float ramp_ = 0.0f;             // 0..1, share of the commanded travel speed in use
+  float owed_mm_ = 0.0f;          // commanded travel not yet driven, along owed_x/y (shape frame)
+  float owed_x_ = 1.0f;
+  float owed_y_ = 0.0f;
   uint8_t shape_detail_ = CATENA_SHAPE_HOLD;
   float cruise_turn_rad_s_ = 0.0f;
   float retarget_in_s_ = 0.0f;
