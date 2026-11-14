@@ -20,6 +20,21 @@ float wrap_pi(float a) {
 
 uint64_t to_us(float seconds) { return static_cast<uint64_t>(seconds * 1e6f); }
 
+// Sent in place of a turning error by a robot that cannot measure its angle yet.
+const float kUnknown = 3.2767f;
+bool unknown(float e) { return e > 3.25f; }
+
+// Angles and small quantities on the radio: int16, little endian, 1e-4 units.
+void put16(uint8_t* out, float value) {
+  const int v = static_cast<int>(std::lround(clampf(value, -3.2f, kUnknown) * 1e4f));
+  out[0] = static_cast<uint8_t>(v & 0xFF);
+  out[1] = static_cast<uint8_t>((v >> 8) & 0xFF);
+}
+float get16(const uint8_t* in) {
+  return static_cast<float>(static_cast<int16_t>(in[0] | (in[1] << 8))) * 1e-4f;
+}
+bool newer(uint8_t a, uint8_t b) { return static_cast<int8_t>(a - b) > 0; }
+
 float range_of(const Neighbour& n) { return std::hypot(n.x_mm, n.y_mm); }
 float bearing_of(const Neighbour& n) { return std::atan2(n.y_mm, n.x_mm); }
 }  // namespace
@@ -64,6 +79,7 @@ void Robot::step(Hal& hal) {
 
   // Dead reckoning: my own turn and travel move every remembered neighbour the other way.
   const float turned = hal.gyro_z_rad_s() * dt_s;
+  psi_rad_ = wrap_pi(psi_rad_ + turned);
   const float moved = last_v_mm_s_ * dt_s;
   const float c = std::cos(turned);
   const float s = std::sin(turned);
@@ -81,7 +97,16 @@ void Robot::step(Hal& hal) {
   receive(hal);
   update_links(hal, dt_s);
   find_seeker();
-  if (chain_.ahead() != CATENA_NONE) {
+  if (aft() != aft_id_) {
+    aft_id_ = aft();
+    aft_samples_ = 0;
+  }
+  push_out_x_ = push_out_y_ = 0.0f;
+  has_turn_ = false;
+  e_self_ = 0.0f;
+  if (shape_ready()) {
+    shape(hal);
+  } else if (chain_.ahead() != CATENA_NONE) {
     follow(hal);
   } else {
     lead(hal, dt_s);
@@ -93,7 +118,9 @@ void Robot::step(Hal& hal) {
     // Feed-forward for the follower: my speed along the line from it to me.
     const Neighbour* b = find(chain_.behind());
     const float along = b && tracked(*b) ? -std::cos(bearing_of(*b)) : 0.0f;
-    hal.send(chain_.behind(), frame, chain_.make_ack(frame, hall_, last_v_mm_s_ * along));
+    const uint8_t len = chain_.make_ack(frame, hall_, last_v_mm_s_ * along);
+    put16(frame + len, e_self_);
+    hal.send(chain_.behind(), frame, len + 2);
   }
   if (chain_.ahead() != CATENA_NONE) {
     // Tell the head when I can see a higher-ranked chain that it may not.
@@ -103,8 +130,18 @@ void Robot::step(Hal& hal) {
       sight = sight || (tracked(n) && n.has_info && n.chain_id != mine.chain_id &&
                         outranks(Rank{n.size, n.chain_id}, mine));
     }
-    hal.send(chain_.ahead(), frame, chain_.make_up(frame, hold_here_, hall_, sight, traced_here_));
+    const uint8_t len = chain_.make_up(frame, hold_here_, hall_, sight, traced_here_);
+    put16(frame + len, e_self_);
+    put16(frame + len + 2, wrap_pi(psi_rad_ + ring_rad_));
+    hal.send(chain_.ahead(), frame, len + 4);
   }
+  if (closure_ != CATENA_NONE) {
+    frame[0] = CATENA_FRAME_CLOSE;
+    put16(frame + 1, e_self_);
+    put16(frame + 3, chain_.ahead() == CATENA_NONE ? wrap_pi(psi_rad_ + ring_rad_) : hall_);
+    hal.send(closure_, frame, 5);
+  }
+  shape_gossip(hal);
 
   catena_debug_t debug = {};
   debug.state = state_;
@@ -114,7 +151,13 @@ void Robot::step(Hal& hal) {
     debug.detail = seek_detail_;
   } else if (state_ == CATENA_STATE_DOCK) {
     debug.detail = dock_phase_;
+  } else if (state_ == CATENA_STATE_SHAPE || state_ == CATENA_STATE_MOVE) {
+    debug.detail = shape_detail_;
   }
+  debug.shape_version = shape_version_;
+  debug.closure = closure_;
+  debug.shape_error_deg = static_cast<int8_t>(
+      unknown(e_self_) ? 0.0f : clampf(e_self_ * 180.0f / kPi, -127.0f, 127.0f));
   debug.index = chain_.index();
   debug.chain_size = chain_.size();
   debug.chain_id = chain_.chain_id();
@@ -160,6 +203,14 @@ void Robot::receive(Hal& hal) {
         n->range_mm = fix.range_mm;
         n->seen_us = now_us_;
         n->used = true;
+        if (rx.src == aft_id_ && aft_us_ != 0) {
+          // Where the robot behind me is: its tongue direction by its own gyro and ring
+          // sensor is exact but for a constant; the flash bearings pin the constant down.
+          const float seen = wrap_pi(aft_tongue_rad_ + kPi - psi_rad_ - fix.bearing_rad);
+          ++aft_samples_;
+          const float gain = std::fmax(1.0f / static_cast<float>(aft_samples_), p_.shape_offset_gain);
+          aft_offset_rad_ = wrap_pi(aft_offset_rad_ + gain * wrap_pi(seen - aft_offset_rad_));
+        }
       }
       if (!n || !confirmed(*n) || rx.len < 9) continue;
       n->has_info = true;
@@ -183,7 +234,8 @@ void Robot::receive(Hal& hal) {
 
     // Locality: frames count only from a sender seen flashing. A linked neighbour was
     // seen when the link was made and stays accepted while the link lasts.
-    const bool linked = rx.src == chain_.ahead() || rx.src == chain_.behind();
+    const bool linked = rx.src == chain_.ahead() || rx.src == chain_.behind() ||
+                        rx.src == closure_;
     if (!n || (!confirmed(*n) && !linked)) continue;
     if (type == CATENA_FRAME_LINK_REQ && rx.len >= 3) {
       const bool slot_free = req_id_ == CATENA_NONE || req_id_ == rx.src ||
@@ -195,14 +247,49 @@ void Robot::receive(Hal& hal) {
         req_size_ = rx.data[2];
         req_us_ = now_us_;
       }
+      // My own head closing a ring (spec 7.4).
+      if (same_chain && chain_.behind() == CATENA_NONE && closure_ == CATENA_NONE &&
+          (shape_flags_ & 3) == 3 && n->has_info && (n->flags & CATENA_FLAG_HEAD)) {
+        close_req_id_ = rx.src;
+        close_req_us_ = now_us_;
+      }
     } else if (type == CATENA_FRAME_LINK_ACK) {
       if (chain_.ahead() == CATENA_NONE && accepts_link(*n)) {
         chain_.set_ahead(rx.src, now_us_);
         mislinked_s_ = 0.0f;
       }
       chain_.on_frame(rx.src, rx.data, rx.len, now_us_);
+      if (rx.src == chain_.ahead() && rx.len >= 7) {
+        e_fore_ = get16(rx.data + 5);
+        e_fore_us_ = now_us_;
+      }
     } else if (type == CATENA_FRAME_LINK_UP) {
       chain_.on_frame(rx.src, rx.data, rx.len, now_us_);
+      if (rx.src == chain_.behind() && rx.len >= 9) {
+        e_aft_ = get16(rx.data + 5);
+        aft_tongue_rad_ = get16(rx.data + 7);
+        aft_us_ = now_us_;
+      }
+    } else if (type == CATENA_FRAME_CLOSE && rx.len >= 5) {
+      const bool head_end = chain_.ahead() == CATENA_NONE && chain_.behind() != CATENA_NONE;
+      if (closure_ == CATENA_NONE && head_end && (shape_flags_ & 3) == 3 && n->has_info &&
+          n->chain_id == chain_.chain_id() && accepts_link(*n)) {
+        closure_ = rx.src;  // my tail says my tongue is on its hub
+      }
+      if (rx.src == closure_) {
+        closure_heard_us_ = now_us_;
+        if (head_end) {
+          e_fore_ = get16(rx.data + 1);
+          e_fore_us_ = now_us_;
+          closure_hall_ = get16(rx.data + 3);
+        } else {
+          e_aft_ = get16(rx.data + 1);
+          aft_tongue_rad_ = get16(rx.data + 3);
+          aft_us_ = now_us_;
+        }
+      }
+    } else if (type == CATENA_FRAME_SHAPE && rx.len >= 9) {
+      shape_frame(rx);
     } else if (type == CATENA_FRAME_GUIDE && rx.len >= 2) {
       n->guide_rad = static_cast<float>(static_cast<int8_t>(rx.data[1])) / 127.0f * kPi;
       n->guide_us = now_us_;
@@ -243,6 +330,18 @@ void Robot::update_links(Hal& hal, float dt_s) {
   tip_on_s_ = hall_ > p_.hall_link ? tip_on_s_ + dt_s : 0.0f;
   tip_off_s_ = hall_ < p_.hall_lost ? tip_off_s_ + dt_s : 0.0f;
 
+  // The ring's closing link: the head's tongue on the tail's hub. It is kept apart from
+  // ahead/behind, so index and count still run from head to tail.
+  if (closure_ != CATENA_NONE) {
+    const bool head_end = chain_.ahead() == CATENA_NONE;
+    const bool an_end = head_end ? chain_.behind() != CATENA_NONE
+                                 : chain_.behind() == CATENA_NONE;
+    if (!an_end || now_us_ - closure_heard_us_ > timeout_us ||
+        (!head_end && tip_off_s_ * p_.tick_hz > 3.0f)) {
+      closure_ = CATENA_NONE;
+    }
+  }
+
   // Behind: the hall sensor says whether a tip is there; frames say whose it is.
   if (chain_.behind() != CATENA_NONE) {
     if (tip_off_s_ * p_.tick_hz > 3.0f) {
@@ -253,18 +352,32 @@ void Robot::update_links(Hal& hal, float dt_s) {
       chain_.clear_behind();
       tip_on_s_ = 0.0f;
     }
+  } else if (closure_ != CATENA_NONE) {
+    // The tip on my hub is my own head's.
   } else if (hall_ > p_.hall_link) {
+    const Neighbour* closer = close_req_id_ != CATENA_NONE && now_us_ - close_req_us_ <= timeout_us
+                                  ? find(close_req_id_) : nullptr;
     const Neighbour* asked = req_id_ != CATENA_NONE && now_us_ - req_us_ <= timeout_us
                                  ? find(req_id_) : nullptr;
-    if (asked && tracked(*asked) && range_of(*asked) < p_.link_range_mm) {
+    if (closer && chain_.ahead() != CATENA_NONE && tracked(*closer) &&
+        range_of(*closer) < p_.link_range_mm) {
+      closure_ = close_req_id_;
+      closure_heard_us_ = now_us_;
+      close_req_id_ = CATENA_NONE;
+    } else if (asked && tracked(*asked) && range_of(*asked) < p_.link_range_mm) {
       chain_.set_behind(req_id_, req_size_, req_chain_, now_us_);
       req_id_ = CATENA_NONE;
     } else if (tip_on_s_ >= p_.adopt_delay_s) {
       // A tip landed that nobody announced (robots bump into each other): offer the link.
       const Neighbour* n = pick_adoptee();
       if (n && chain_.size() > 1 && n->chain_id == chain_.chain_id()) {
-        const uint8_t nak[1] = {CATENA_FRAME_LINK_NAK};  // my own head: no rings before M3
-        hal.send(n->id, nak, sizeof nak);
+        if ((shape_flags_ & 3) == 3 && chain_.ahead() != CATENA_NONE) {
+          closure_ = n->id;  // my own head, and the shape is closed: the ring's last link
+          closure_heard_us_ = now_us_;
+        } else {
+          const uint8_t nak[1] = {CATENA_FRAME_LINK_NAK};  // my own head, no ring asked for
+          hal.send(n->id, nak, sizeof nak);
+        }
       } else if (n) {
         chain_.set_behind(n->id, n->size, n->chain_id, now_us_);
       }
@@ -319,7 +432,7 @@ void Robot::announce(Hal& hal) {
   const uint32_t delay_us =
       next_flash_us_ > now_us_ ? static_cast<uint32_t>(next_flash_us_ - now_us_) : 0u;
   uint8_t flags = 0;
-  if (chain_.ahead() == CATENA_NONE) flags |= CATENA_FLAG_HEAD;
+  if (fore() == CATENA_NONE) flags |= CATENA_FLAG_HEAD;
   if (chain_.behind() == CATENA_NONE && hall_ <= p_.hall_link) flags |= CATENA_FLAG_TAIL;
   if (state_ == CATENA_STATE_DOCK) flags |= CATENA_FLAG_DOCKING;
   const uint8_t frame[9] = {CATENA_FRAME_FLASH, id_, chain_.chain_id(), chain_.size(),
@@ -347,6 +460,275 @@ void Robot::follow(Hal& hal) {
   v *= clampf(std::cos(ring_rad_), 0.0f, 1.0f);
   if (!hal.table_left() && !hal.table_right() && v > 0.0f) v = 0.0f;
   drive(hal, v, p_.follow_turn_gain_per_s * ring_rad_);
+}
+
+// -- SHAPE and MOVE (spec 7.4, 7.5) ---------------------------------------------------------
+
+uint8_t Robot::fore() const {
+  if (chain_.ahead() != CATENA_NONE) return chain_.ahead();
+  return chain_.behind() != CATENA_NONE ? closure_ : CATENA_NONE;
+}
+
+uint8_t Robot::aft() const {
+  if (chain_.behind() != CATENA_NONE) return chain_.behind();
+  return chain_.ahead() != CATENA_NONE ? closure_ : CATENA_NONE;
+}
+
+void Robot::set_shape(const uint8_t* xy, bool closed, bool active) {
+  for (int k = 0; k < 2 * kStrokePoints; ++k) stroke_.xy[k] = xy[k];
+  ++shape_version_;
+  if (shape_version_ == 0) shape_version_ = 1;
+  shape_flags_ = static_cast<uint8_t>((closed ? 1 : 0) | (active ? 2 : 0));
+  chunks_ = 0x0F;
+}
+
+void Robot::set_twist(float vx_mm_s, float vy_mm_s, float wz_rad_s) {
+  ++twist_seq_;
+  twist_[0] = static_cast<int8_t>(clampf(vx_mm_s, -127.0f, 127.0f));
+  twist_[1] = static_cast<int8_t>(clampf(vy_mm_s, -127.0f, 127.0f));
+  twist_[2] = static_cast<int8_t>(clampf(wz_rad_s * 100.0f, -127.0f, 127.0f));
+}
+
+// A SHAPE frame from a linked neighbour: the newest shape and the newest twist win.
+void Robot::shape_frame(const catena_rx_t& rx) {
+  const uint8_t version = rx.data[1];
+  if (version == 0) return;
+  if (shape_version_ == 0 || newer(version, shape_version_)) {
+    shape_version_ = version;
+    shape_flags_ = rx.data[2] & 3;
+    chunks_ = 0;
+  }
+  if (version != shape_version_) return;
+  if (rx.len >= 9 + 16) {
+    const int chunk = (rx.data[2] >> 4) & 3;
+    for (int k = 0; k < 16; ++k) stroke_.xy[16 * chunk + k] = rx.data[9 + k];
+    chunks_ |= static_cast<uint8_t>(1u << chunk);
+  }
+  if (newer(rx.data[3], twist_seq_)) {
+    twist_seq_ = rx.data[3];
+    for (int k = 0; k < 3; ++k) twist_[k] = static_cast<int8_t>(rx.data[4 + k]);
+  }
+  const float px = static_cast<float>(static_cast<int8_t>(rx.data[7]));
+  const float py = static_cast<float>(static_cast<int8_t>(rx.data[8]));
+  const bool stale = now_us_ - push_in_us_ > to_us(p_.link_timeout_s);
+  if (stale || std::hypot(px, py) >= std::hypot(push_in_x_, push_in_y_)) {
+    push_in_x_ = px;
+    push_in_y_ = py;
+    push_in_us_ = now_us_;
+  }
+}
+
+// One SHAPE frame per step, to the robot ahead and the robot behind in turn, a quarter of
+// the stroke at a time.
+void Robot::shape_gossip(Hal& hal) {
+  if (shape_version_ == 0) return;
+  ++gossip_count_;
+  const uint8_t to = gossip_count_ & 1 ? fore() : aft();
+  if (to == CATENA_NONE) return;
+  const int chunk = (gossip_count_ >> 1) & 3;
+  uint8_t frame[9 + 16];
+  frame[0] = CATENA_FRAME_SHAPE;
+  frame[1] = shape_version_;
+  frame[2] = static_cast<uint8_t>(shape_flags_ | (chunk << 4));
+  frame[3] = twist_seq_;
+  for (int k = 0; k < 3; ++k) frame[4 + k] = static_cast<uint8_t>(twist_[k]);
+  frame[7] = static_cast<uint8_t>(static_cast<int8_t>(clampf(push_out_x_, -127.0f, 127.0f)));
+  frame[8] = static_cast<uint8_t>(static_cast<int8_t>(clampf(push_out_y_, -127.0f, 127.0f)));
+  const bool have = (chunks_ >> chunk) & 1;
+  for (int k = 0; k < 16; ++k) frame[9 + k] = stroke_.xy[16 * chunk + k];
+  hal.send(to, frame, have ? sizeof frame : 9);
+}
+
+// True while this robot holds a shape: an active stroke has arrived in full and the chain
+// is long enough. Rebuilds the polygon when the stroke or the chain's size changes.
+bool Robot::shape_ready() {
+  const int n = chain_.size();
+  if (shape_version_ == 0 || !(shape_flags_ & 2) || chunks_ != 0x0F || n < 2) return false;
+  if (poly_version_ != shape_version_ || poly_.n != n) {
+    stroke_.closed = (shape_flags_ & 1) != 0;
+    poly_ok_ = make_polygon(stroke_, n, p_.pitch_mm, p_.max_joint_yaw_rad, &poly_);
+    poly_version_ = shape_version_;
+    poly_.n = n;
+  }
+  return poly_ok_ && chain_.index() < n;
+}
+
+const Neighbour* Robot::own_tail() const {
+  for (const Neighbour& n : neighbours_) {
+    if (tracked(n) && n.has_info && n.chain_id == chain_.chain_id() && n.id != chain_.behind() &&
+        (n.flags & CATENA_FLAG_TAIL) && n.size == chain_.size()) {
+      return &n;
+    }
+  }
+  return nullptr;
+}
+
+void Robot::shape(Hal& hal) {
+  holding_ = false;
+  goal_ = target_ = CATENA_NONE;
+  phase_ = CATENA_WANDER_CRUISE;
+  shape_detail_ = CATENA_SHAPE_HOLD;
+  const bool moving = twist_[0] != 0 || twist_[1] != 0 || twist_[2] != 0;
+  state_ = moving ? CATENA_STATE_MOVE : CATENA_STATE_SHAPE;
+
+  const int n = poly_.n;
+  const int i = chain_.index();
+  const uint8_t f = fore();
+  const bool head_end = chain_.ahead() == CATENA_NONE;
+  const uint64_t stale_us = to_us(p_.link_timeout_s);
+  const bool has_aft = aft_id_ != CATENA_NONE && now_us_ - aft_us_ <= stale_us &&
+                       static_cast<float>(aft_samples_) >= p_.shape_offset_samples;
+  const float aft_rad = wrap_pi(aft_tongue_rad_ + kPi - psi_rad_ - aft_offset_rad_);
+  // u: the link from the robot ahead to me. w: the link from me to the robot behind.
+  const float ux = -std::cos(ring_rad_), uy = -std::sin(ring_rad_);
+  const float wx = std::cos(aft_rad), wy = std::sin(aft_rad);
+
+  // Shape frame to base frame: the polygon says where my edge points, the ring sensor
+  // (or, for the head, the robot behind) says where it points for me.
+  const bool framed = f != CATENA_NONE || has_aft;
+  const float rho = f != CATENA_NONE ? wrap_pi(ring_rad_ + kPi - poly_.edge_rad[i])
+                                     : wrap_pi(aft_rad - poly_.edge_rad[1]);
+  const float cr = std::cos(rho), sr = std::sin(rho);
+
+  // Edge push: mine while a sensor is over the edge, else what a neighbour passes on.
+  const bool at_edge = !hal.table_left() || !hal.table_right();
+  if (at_edge && framed) {
+    // Away from the edge is backward as I met it. Fixed then: I turn in place afterwards.
+    if (now_us_ >= edge_until_us_) {
+      edge_push_x_ = -p_.shape_edge_push_mm_s * cr;
+      edge_push_y_ = p_.shape_edge_push_mm_s * sr;
+    }
+    edge_until_us_ = now_us_ + to_us(p_.shape_edge_hold_s);
+  }
+  if (now_us_ < edge_until_us_) {
+    push_out_x_ = edge_push_x_;
+    push_out_y_ = edge_push_y_;
+  } else if (now_us_ - push_in_us_ <= stale_us) {
+    push_out_x_ = p_.shape_push_decay * push_in_x_;
+    push_out_y_ = p_.shape_push_decay * push_in_y_;
+  }
+  if (at_edge) {
+    // Never forward over a void, and never backward either: there is no sensor at the
+    // rear, and a robot parallel to an edge would reverse along it (it did, and fell).
+    // Turn in place toward the table and let the push move the shape.
+    shape_detail_ = CATENA_SHAPE_EDGE;
+    drive(hal, 0.0f, hal.table_right() ? -p_.wander_spin_rate_rad_s : p_.wander_spin_rate_rad_s);
+    return;
+  }
+
+  const bool ring_wanted = poly_.closed && n >= 3;
+  if (closure_ != CATENA_NONE && !ring_wanted && head_end) {
+    // The new shape is open: line the base up with the tongue and pull it out.
+    shape_detail_ = CATENA_SHAPE_OPENING;
+    const bool lined_up = std::fabs(ring_rad_) < p_.dock_align_rad;
+    drive(hal, lined_up ? -p_.dock_speed_mm_s : 0.0f,
+          clampf(p_.shape_turn_gain_per_s * ring_rad_, -p_.wander_spin_rate_rad_s,
+                 p_.wander_spin_rate_rad_s));
+    return;
+  }
+  if (ring_wanted && head_end && closure_ == CATENA_NONE) {
+    // A closed shape closes itself: the head docks onto its own tail once it is near.
+    // ... and lies where the shape puts it: ends that only pass each other do not link.
+    const Neighbour* tail = own_tail();
+    const float expected = rho + std::atan2(poly_.y_mm[n - 1] - poly_.y_mm[0],
+                                            poly_.x_mm[n - 1] - poly_.x_mm[0]);
+    if (tail && framed && range_of(*tail) < p_.shape_close_range_mm &&
+        std::fabs(wrap_pi(bearing_of(*tail) - expected)) < p_.shape_close_cone_rad) {
+      shape_detail_ = CATENA_SHAPE_CLOSING;
+      target_ = tail->id;
+      const float bearing = bearing_of(*tail);
+      const float w = p_.seek_turn_gain_per_s * bearing;
+      if (std::fabs(bearing) < p_.dock_align_rad && std::fabs(ring_rad_) < p_.dock_align_rad) {
+        const uint8_t request[3] = {CATENA_FRAME_LINK_REQ, chain_.chain_id(), chain_.size()};
+        hal.send(tail->id, request, sizeof request);
+        // No faster than the robot on my hub keeps up: driving in must not tear it off.
+        const float keep = clampf((hall_ - p_.follow_slack_stop) /
+                                  (p_.follow_slack_full - p_.follow_slack_stop), 0.0f, 1.0f);
+        drive(hal, keep * p_.dock_speed_mm_s,
+              clampf(w, -p_.dock_max_turn_rate_rad_s, p_.dock_max_turn_rate_rad_s));
+      } else {
+        drive(hal, 0.0f, clampf(w, -p_.wander_spin_rate_rad_s, p_.wander_spin_rate_rad_s));
+      }
+      return;
+    }
+  }
+
+  // The local rule (spec 7.4): descend the sum of squared turning errors, using my own two
+  // links and my neighbours' errors.
+  const bool opening = closure_ != CATENA_NONE && !ring_wanted;
+  has_turn_ = f != CATENA_NONE && has_aft && !opening;
+  e_self_ = has_turn_ ? wrap_pi(std::atan2(ux * wy - uy * wx, ux * wx + uy * wy) - poly_.turn_rad[i])
+                      : 0.0f;
+  const float e_fore = now_us_ - e_fore_us_ <= stale_us ? e_fore_ : 0.0f;
+  const float e_aft = now_us_ - aft_us_ <= stale_us ? e_aft_ : 0.0f;
+  // A robot between two others that does not know its angle yet says so, and it and its
+  // neighbours wait: a made-up zero would send them all off against each other.
+  const bool blind = f != CATENA_NONE && aft_id_ != CATENA_NONE && !has_aft;
+  if (blind) e_self_ = kUnknown;
+  const bool wait = blind || unknown(e_fore) || unknown(e_aft);
+  const float g = p_.shape_gain_per_s * p_.pitch_mm;
+  float vx = 0.0f, vy = 0.0f;
+  if (f != CATENA_NONE && !wait) {
+    vx -= g * (e_fore - e_self_) * -uy;
+    vy -= g * (e_fore - e_self_) * ux;
+  }
+  if (has_aft && !wait) {
+    vx -= g * (e_aft - e_self_) * -wy;
+    vy -= g * (e_aft - e_self_) * wx;
+  }
+  const float correction = std::hypot(vx, vy);
+  if (correction > p_.shape_max_speed_mm_s) {
+    vx *= p_.shape_max_speed_mm_s / correction;
+    vy *= p_.shape_max_speed_mm_s / correction;
+  }
+  // Close a stretched gap to the hub ahead, as in FOLLOW: the magnet alone holds only so
+  // much. Never open one: that would turn the base right round, again and again.
+  if (f != CATENA_NONE) {
+    const float hall_ahead = chain_.ahead() != CATENA_NONE ? chain_.ahead_hall() : closure_hall_;
+    const float feed = chain_.ahead() != CATENA_NONE ? std::fmax(chain_.ahead_speed_mm_s(), 0.0f)
+                                                     : 0.0f;
+    const float gap = clampf(feed + p_.follow_gain_mm_s * (p_.follow_hall_target - hall_ahead),
+                             0.0f, p_.follow_lead_speed_mm_s);
+    vx += gap * -ux;
+    vy += gap * -uy;
+  }
+  if (has_aft) {
+    // The same for the link on my own hub: give way toward the robot behind.
+    const float gap = clampf(p_.follow_gain_mm_s * (p_.follow_hall_target - hall_), 0.0f,
+                             p_.follow_lead_speed_mm_s);
+    vx += gap * wx;
+    vy += gap * wy;
+  }
+  // Twist and edge push are given in the shape frame (spec 7.5).
+  if (framed) {
+    float tx = static_cast<float>(twist_[0]), ty = static_cast<float>(twist_[1]);
+    const float speed = std::hypot(tx, ty);
+    if (speed > p_.shape_twist_max_speed_mm_s) {
+      tx *= p_.shape_twist_max_speed_mm_s / speed;
+      ty *= p_.shape_twist_max_speed_mm_s / speed;
+    }
+    const float wz = clampf(static_cast<float>(twist_[2]) * 0.01f, -p_.shape_twist_max_rate_rad_s,
+                            p_.shape_twist_max_rate_rad_s);
+    const float sx = tx - wz * poly_.y_mm[i] + push_out_x_;
+    const float sy = ty + wz * poly_.x_mm[i] + push_out_y_;
+    vx += cr * sx - sr * sy;
+    vy += sr * sx + cr * sy;
+  }
+  shape_drive(hal, vx, vy);
+}
+
+// The base turns toward the velocity and drives, slower while misaligned (spec 7.5).
+void Robot::shape_drive(Hal& hal, float vx_mm_s, float vy_mm_s) {
+  const float speed = std::hypot(vx_mm_s, vy_mm_s);
+  if (speed < p_.shape_min_speed_mm_s) {
+    drive(hal, 0.0f, 0.0f);
+    return;
+  }
+  const float error = std::atan2(vy_mm_s, vx_mm_s);
+  const float forward = clampf(std::cos(error), 0.0f, 1.0f);
+  drive(hal, speed * forward * forward,
+        clampf(p_.shape_turn_gain_per_s * error, -p_.wander_spin_rate_rad_s,
+               p_.wander_spin_rate_rad_s));
 }
 
 // -- head: WANDER, SEEK, DOCK ---------------------------------------------------------------

@@ -19,9 +19,10 @@ TX_MAX = 4
 BROADCAST = 0xFF
 NONE = 0xFF
 FRAME_FLASH = 1
-STATE_WANDER, STATE_SEEK, STATE_DOCK, STATE_FOLLOW = 1, 2, 3, 4
+STATE_WANDER, STATE_SEEK, STATE_DOCK, STATE_FOLLOW, STATE_SHAPE, STATE_MOVE = 1, 2, 3, 4, 5, 6
+STROKE_POINTS = 32
 
-STATE_NAMES = {1: "WANDER", 2: "SEEK", 3: "DOCK", 4: "FOLLOW"}
+STATE_NAMES = {1: "WANDER", 2: "SEEK", 3: "DOCK", 4: "FOLLOW", 5: "SHAPE", 6: "MOVE"}
 WANDER_DETAIL = {0: "cruise", 1: "avoid", 2: "backoff", 3: "turn", 4: "hold"}
 
 u8, u32, i32, f32 = ctypes.c_uint8, ctypes.c_uint32, ctypes.c_int32, ctypes.c_float
@@ -76,7 +77,9 @@ class Debug(ctypes.Structure):
         ("ahead", u8),
         ("behind", u8),
         ("target", u8),
-        ("reserved", u8 * 3),
+        ("shape_version", u8),
+        ("closure", u8),
+        ("shape_error_deg", ctypes.c_int8),
     ]
 
 
@@ -118,6 +121,11 @@ def load() -> ctypes.CDLL:
     lib.catena_step.restype = None
     lib.catena_destroy.argtypes = [ctypes.c_void_p]
     lib.catena_destroy.restype = None
+    lib.catena_set_shape.argtypes = [ctypes.c_void_p, ctypes.POINTER(u8), ctypes.c_int,
+                                     ctypes.c_int]
+    lib.catena_set_shape.restype = None
+    lib.catena_set_twist.argtypes = [ctypes.c_void_p, f32, f32, f32]
+    lib.catena_set_twist.restype = None
     lib.catena_flash_estimate.argtypes = [
         ctypes.POINTER(Params),
         ctypes.POINTER(f32),
@@ -172,6 +180,16 @@ class Core:
     def step(self) -> Outputs:
         self._lib.catena_step(self._handle, ctypes.byref(self.inputs), ctypes.byref(self.outputs))
         return self.outputs
+
+    def set_shape(self, xy: bytes, closed: bool, active: bool = True) -> None:
+        """Hand this robot a stroke: STROKE_POINTS points as x0, y0, x1, ... in 0..255."""
+        if len(xy) != 2 * STROKE_POINTS:
+            raise ValueError(f"a stroke has {STROKE_POINTS} points")
+        buf = (u8 * len(xy))(*xy)
+        self._lib.catena_set_shape(self._handle, buf, int(closed), int(active))
+
+    def set_twist(self, vx_mm_s: float, vy_mm_s: float, wz_rad_s: float) -> None:
+        self._lib.catena_set_twist(self._handle, vx_mm_s, vy_mm_s, wz_rad_s)
 
     def __del__(self) -> None:
         handle = getattr(self, "_handle", None)

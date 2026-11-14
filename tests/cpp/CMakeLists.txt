@@ -4,7 +4,8 @@ add_executable(catena_tests
   test_params.cpp
   test_ranging.cpp
   test_wander.cpp
-  test_chain.cpp)
+  test_chain.cpp
+  test_shape.cpp)
 add_dependencies(catena_tests catena_params)
 target_include_directories(catena_tests PRIVATE third_party)
 target_link_libraries(catena_tests PRIVATE catena_static)

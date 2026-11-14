@@ -9,6 +9,7 @@
 #include "catena/hal.h"
 #include "chain.h"
 #include "rng.h"
+#include "shape.h"
 
 namespace catena {
 
@@ -39,6 +40,9 @@ class Robot {
  public:
   Robot(uint8_t id, const catena_params_t& params);
   void step(Hal& hal);
+  // The phone's commands, injected at this robot (spec 10).
+  void set_shape(const uint8_t* xy, bool closed, bool active);
+  void set_twist(float vx_mm_s, float vy_mm_s, float wz_rad_s);
 
   uint8_t wander_phase() const { return phase_; }
   const Neighbour* nearest_ahead() const;
@@ -50,6 +54,15 @@ class Robot {
   void announce(Hal& hal);
   void lead(Hal& hal, float dt_s);
   void follow(Hal& hal);
+  void shape(Hal& hal);
+  void shape_drive(Hal& hal, float vx_mm_s, float vy_mm_s);
+  void shape_frame(const catena_rx_t& rx);
+  void shape_gossip(Hal& hal);
+  bool shape_ready();
+  const Neighbour* own_tail() const;
+  // The robots on either side of me along the shape, the ring's closing link included.
+  uint8_t fore() const;
+  uint8_t aft() const;
   void wander(Hal& hal, float dt_s);
   void seek(Hal& hal, const Neighbour& goal, float dt_s);
   void dock(Hal& hal, const Neighbour& goal, float range_mm, float bearing_rad, float offset_rad,
@@ -112,6 +125,42 @@ class Robot {
   bool traced_here_ = false;  // I see a lower-ranked head that is seeking
   bool run_in_ = false;  // towing: on the straight run from the outer circle to the standoff
 
+  // Shape (spec 7.4, 7.5).
+  Stroke stroke_ = {};
+  uint8_t shape_version_ = 0;     // 0: none yet
+  uint8_t shape_flags_ = 0;       // 1 closed, 2 active
+  uint8_t chunks_ = 0;            // which quarters of the stroke have arrived
+  uint8_t twist_seq_ = 0;
+  int8_t twist_[3] = {};          // vx, vy in mm/s, wz in 0.01 rad/s
+  Polygon poly_ = {};
+  bool poly_ok_ = false;
+  uint8_t poly_version_ = 0;
+  uint8_t gossip_count_ = 0;
+  float psi_rad_ = 0.0f;          // base heading by gyro, from an arbitrary start
+  float e_self_ = 0.0f;           // my turning error
+  bool has_turn_ = false;
+  float e_fore_ = 0.0f;
+  float e_aft_ = 0.0f;
+  uint64_t e_fore_us_ = 0;
+  uint64_t aft_us_ = 0;
+  float aft_tongue_rad_ = 0.0f;   // tongue direction of the robot behind, in its own psi
+  float aft_offset_rad_ = 0.0f;   // its psi against mine, learnt from flash bearings
+  int aft_samples_ = 0;
+  uint8_t aft_id_ = CATENA_NONE;
+  uint8_t closure_ = CATENA_NONE; // other end of the ring's closing link
+  uint64_t closure_heard_us_ = 0;
+  float closure_hall_ = 1.0f;
+  uint8_t close_req_id_ = CATENA_NONE;
+  uint64_t close_req_us_ = 0;
+  float push_in_x_ = 0.0f;        // strongest edge push heard lately, shape frame, mm/s
+  float push_in_y_ = 0.0f;
+  uint64_t push_in_us_ = 0;
+  float edge_push_x_ = 0.0f;      // my own push, fixed when the edge was first seen
+  float edge_push_y_ = 0.0f;
+  uint64_t edge_until_us_ = 0;
+  float push_out_x_ = 0.0f;
+  float push_out_y_ = 0.0f;
+  uint8_t shape_detail_ = CATENA_SHAPE_HOLD;
   float cruise_turn_rad_s_ = 0.0f;
   float retarget_in_s_ = 0.0f;
   float avoid_dir_ = 1.0f;

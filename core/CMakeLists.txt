@@ -22,7 +22,8 @@ add_library(catena_obj OBJECT
   src/catena_c.cpp
   src/chain.cpp
   src/ranging.cpp
-  src/robot.cpp)
+  src/robot.cpp
+  src/shape.cpp)
 add_dependencies(catena_obj catena_params)
 target_include_directories(catena_obj PUBLIC include "${CATENA_GEN_DIR}")
 target_compile_options(catena_obj PRIVATE -Wall -Wextra -Wpedantic -fno-exceptions -fno-rtti)

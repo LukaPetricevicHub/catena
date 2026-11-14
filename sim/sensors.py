@@ -62,6 +62,7 @@ class BodySensors:
         self.edge_x, self.edge_y = sensing["edge_sensor_xy"]
         drift = math.radians(sensing["gyro_drift_deg_per_min"]) / 60.0
         self.gyro_bias = rng.uniform(-drift, drift)
+        self._gyro_last: tuple[float, float] | None = None
         self.ring_sigma = math.radians(sensing["ring_angle_sigma_deg"])
         wheel = cfg["geometry"]["base"]["wheel_diameter"]
         self.mm_per_tick = math.pi * wheel / cfg["drive"]["wheel_ticks_per_rev"]
@@ -76,7 +77,14 @@ class BodySensors:
         return seen[0], seen[1]
 
     def gyro(self, robot: Robot) -> float:
-        return robot.base.angular_velocity + self.gyro_bias
+        """Mean yaw rate since the previous reading, plus bias: an IMU samples far faster
+        than core ticks, and its driver hands core the average over the tick."""
+        now, angle = robot.world.time_s, robot.base.angle
+        last_time, last_angle = self._gyro_last or (now, angle)
+        self._gyro_last = (now, angle)
+        if now <= last_time:
+            return robot.base.angular_velocity + self.gyro_bias
+        return (angle - last_angle) / (now - last_time) + self.gyro_bias
 
     def ring_angle(self, robot: Robot) -> float:
         return wrap_pi(robot.ring_angle + self.rng.gauss(0.0, self.ring_sigma))

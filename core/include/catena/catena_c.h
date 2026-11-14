@@ -20,6 +20,7 @@
 #define CATENA_BROADCAST 0xFFu /* destination id of a broadcast */
 
 #define CATENA_NONE 0xFFu      /* "no robot" in id fields */
+#define CATENA_STROKE_POINTS 32 /* points of a drawn stroke (spec 7.4) */
 
 /* Frame types: first payload byte. Link frames go to one robot; core drops every frame
  * whose sender it has not seen flashing within radio.neighbour_timeout. */
@@ -33,6 +34,15 @@
 #define CATENA_FRAME_GUIDE 5u    /* tail to a seeker: [type, seeker's offset from the middle of the
                                     acceptance zone, int8, 127 = pi, counter-clockwise seen from above] */
 #define CATENA_FRAME_LINK_NAK 6u /* hub robot to the robot on its hub: back out (same chain) */
+#define CATENA_FRAME_SHAPE 7u    /* between linked robots, one per step: [type, shape version,
+                                    flags (1 closed, 2 active, bits 4-5 chunk number), twist
+                                    sequence, vx, vy (int8 mm/s), wz (int8, 0.01 rad/s), edge push
+                                    x, y (int8 mm/s, shape frame), then 8 stroke points (x, y)] */
+#define CATENA_FRAME_CLOSE 8u    /* head and tail of a closed ring, every step: [type, turning
+                                    error (int16), tongue direction (from the head) or hall
+                                    reading (from the tail) (int16)] */
+/* While a shape is held LINK_ACK and LINK_UP carry two more bytes, the sender's turning
+ * error, and LINK_UP two more, its tongue direction. int16, little endian, 1e-4 rad. */
 
 /* FLASH flags. */
 #define CATENA_FLAG_HEAD 1u    /* tongue free */
@@ -44,6 +54,13 @@
 #define CATENA_STATE_SEEK 2u
 #define CATENA_STATE_DOCK 3u
 #define CATENA_STATE_FOLLOW 4u
+#define CATENA_STATE_SHAPE 5u  /* holding the drawn shape */
+#define CATENA_STATE_MOVE 6u   /* shape plus twist */
+/* debug.detail codes while holding a shape. */
+#define CATENA_SHAPE_HOLD 0u
+#define CATENA_SHAPE_CLOSING 1u /* the head docks onto its own tail */
+#define CATENA_SHAPE_OPENING 2u /* the head pulls out of its own tail */
+#define CATENA_SHAPE_EDGE 3u    /* backing away from a table edge */
 /* debug.detail codes while wandering. */
 #define CATENA_WANDER_CRUISE 0u
 #define CATENA_WANDER_AVOID 1u
@@ -107,7 +124,9 @@ typedef struct catena_debug_t {
   uint8_t ahead;              /* robot whose hub my tongue sits on, or CATENA_NONE */
   uint8_t behind;             /* robot whose tongue sits on my hub, or CATENA_NONE */
   uint8_t target;             /* tail being sought or docked onto, or CATENA_NONE */
-  uint8_t reserved[3];
+  uint8_t shape_version;      /* 0: no shape received */
+  uint8_t closure;            /* other end of the ring's closing link, or CATENA_NONE */
+  int8_t shape_error_deg;     /* my turning angle minus its target */
 } catena_debug_t;
 
 typedef struct catena_outputs_t {
@@ -132,6 +151,13 @@ CATENA_API void catena_default_params(catena_params_t* out);
 CATENA_API catena_t* catena_create(uint8_t robot_id, const catena_params_t* params);
 CATENA_API void catena_step(catena_t* robot, const catena_inputs_t* in, catena_outputs_t* out);
 CATENA_API void catena_destroy(catena_t* robot);
+
+/* What the phone hands to the robot it has joined; that robot passes it along its links.
+ * xy: CATENA_STROKE_POINTS points as x0, y0, x1, ... in pad units 0..255, y up.
+ * active 0 releases the chain back to FOLLOW. */
+CATENA_API void catena_set_shape(catena_t* robot, const uint8_t* xy, int closed, int active);
+/* Twist in the shape frame (spec 7.5). */
+CATENA_API void catena_set_twist(catena_t* robot, float vx_mm_s, float vy_mm_s, float wz_rad_s);
 
 /* Flash ranging: bearing (rad, base frame) and centre distance (mm) from one IR sample.
  * Returns 0 if the sample holds no signal. */

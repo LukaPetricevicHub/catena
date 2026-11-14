@@ -76,6 +76,14 @@ void catena_step(catena_t* robot, const catena_inputs_t* in, catena_outputs_t* o
 
 void catena_destroy(catena_t* robot) { delete robot; }
 
+void catena_set_shape(catena_t* robot, const uint8_t* xy, int closed, int active) {
+  robot->robot.set_shape(xy, closed != 0, active != 0);
+}
+
+void catena_set_twist(catena_t* robot, float vx_mm_s, float vy_mm_s, float wz_rad_s) {
+  robot->robot.set_twist(vx_mm_s, vy_mm_s, wz_rad_s);
+}
+
 int catena_flash_estimate(const catena_params_t* params, const float ir[CATENA_IR_COUNT],
                           float* bearing_rad, float* range_mm) {
   catena::FlashFix fix;

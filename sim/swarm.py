@@ -11,6 +11,7 @@ from typing import Any, NamedTuple
 
 from sim import corelib
 from sim.sensors import BodySensors, FlashModel
+from sim.shapes import Stroke
 from sim.world import Robot, World
 
 Pose = tuple[float, float, float]
@@ -28,6 +29,9 @@ class Debug(NamedTuple):
     ahead: int
     behind: int
     target: int
+    shape_version: int = 0
+    closure: int = 255
+    shape_error_deg: int = 0
 
 
 @dataclass
@@ -75,6 +79,7 @@ class Swarm:
         self.body: list[BodySensors] = []
         self.inbox: dict[int, list[Delivery]] = {}
         self.debug: dict[int, Debug] = {}
+        self.stroke: Stroke | None = None  # the shape last handed to a robot
         self.stop = False  # a scenario sets this to end the run early
         self.monitor: Any = None
         self.path_mm: list[float] = []
@@ -117,6 +122,15 @@ class Swarm:
             self.add_robot(x, y, self.rng.uniform(-math.pi, math.pi))
 
     # -- running --------------------------------------------------------------------------
+
+    def set_shape(self, stroke: Stroke, robot_id: int = 0, active: bool = True) -> None:
+        """The phone hands a stroke to one robot; the chain passes it on by itself."""
+        self.stroke = stroke if active else None
+        self.cores[robot_id].set_shape(stroke.to_bytes(), stroke.closed, active)
+
+    def set_twist(self, vx_mm_s: float, vy_mm_s: float, wz_rad_s: float,
+                  robot_id: int = 0) -> None:
+        self.cores[robot_id].set_twist(vx_mm_s, vy_mm_s, wz_rad_s)
 
     def alive(self) -> list[Robot]:
         return [r for r in self.world.robots if not r.fallen]
@@ -168,7 +182,8 @@ class Swarm:
             dbg = out.debug
             self.debug[r.id] = Debug(dbg.state, dbg.detail, dbg.index, dbg.chain_size,
                                      dbg.neighbours, dbg.chain_id, dbg.ahead, dbg.behind,
-                                     dbg.target)
+                                     dbg.target, dbg.shape_version, dbg.closure,
+                                     dbg.shape_error_deg)
             if out.flash:
                 data = bytes(out.flash_data[: out.flash_len])
                 new.append(Flash(r.id, now + out.flash_delay_us * 1e-6, data, poses))

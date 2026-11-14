@@ -221,3 +221,45 @@ A seeker with a chain is no faster than the chain it follows, so it rarely reach
 Any member that sees a lower-ranked head with a target sets bit 4 in LINK_UP; the head then
 leads at `seek.traced_speed` (0.3) of its speed. Slowing, not stopping: a full stop passed
 fewer seeds (135 against 140 of 150) and D28's deadlock of a held chain stays impossible.
+
+## D33 The stroke travels along the links in quarters, newest version wins (14 Nov 2026)
+
+A stroke is 64 bytes and a radio frame holds 32. Each linked robot sends one SHAPE frame per
+step, to the robot ahead and behind in turn: version, flags, twist, edge push and 8 of the 32
+points. A robot adopts a newer version and holds the shape once all four quarters are in.
+Measured in simulation: all twelve robots hold the stroke 0.4 to 0.8 s after one is handed it.
+
+## D34 The direction of the robot behind comes from its gyro and ring sensor, pinned by flashes (14 Nov 2026)
+
+The turning angle needs the link on my hub, and only the flash bearing (sigma 10 deg) sees
+it. The robot behind sends its tongue direction (gyro heading plus ring angle) in LINK_UP;
+it differs from my frame by a constant, which I average out of the flash bearings (weight
+1/k, at least `shape.offset_gain`). Until `shape.offset_samples` bearings are in, a robot
+says its error is unknown and it and its neighbours wait.
+
+## D35 The ring's closing link is kept apart from ahead/behind (14 Nov 2026)
+
+A head docking onto its own tail would make index and count run in circles. The closing
+link is a third field (`closure`) with its own CLOSE frames; index and count still run from
+head to tail. The head docks only if the tail is within `shape.close_range` and lies where
+the polygon puts it (`shape.close_cone`). An open shape makes the head pull out again.
+
+## D36 Shape corrections are capped at 20 mm/s and robots give way to a stretched link (14 Nov 2026)
+
+The rule of spec 7.4 is kept as written. At 30 mm/s and more, bases that are still turning
+toward their velocity tear links apart (hold force 0.4 N), so the correction is capped
+(`shape.max_speed`) and each robot adds a velocity toward a neighbour whose link has opened
+(hall reading), one-sided: closing a gap, never opening one. Gain 12/s: 2/s was too slow.
+
+## D37 The simulated gyro reports the mean yaw rate over a tick (14 Nov 2026)
+
+It reported the rate at the instant of the tick. Integrated at 50 Hz that lost a degree or
+more at every start and stop of a turn, and D34 needs headings good to a degree. An IMU
+samples at kHz and its driver can hand core the mean; the firmware must do that (M7).
+
+## D38 At an edge a robot holding a shape turns in place and pushes the shape away (14 Nov 2026)
+
+It never drives forward over a void and never reverses (no sensor at the rear: reversing
+along an edge made one fall). Its push, fixed in the shape frame when the edge is first
+seen and held `shape.edge_hold`, is passed along the chain at `shape.push_decay` per robot.
+Known gap: a robot pushed sideways toward an edge by its chain does not see the edge.

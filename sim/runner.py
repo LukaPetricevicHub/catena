@@ -29,8 +29,10 @@ def load_scenario(name: str) -> ModuleType:
 def build(
     name: str, seed: int, overrides: dict[str, Any] | None = None
 ) -> tuple[ModuleType, Swarm]:
-    scenario = load_scenario(name)
-    return scenario, scenario.build(load_config(overrides), seed)
+    base, _, variant = name.partition(":")  # e.g. shape:ring
+    scenario = load_scenario(base)
+    cfg = load_config(overrides)
+    return scenario, (scenario.build(cfg, seed, variant) if variant else scenario.build(cfg, seed))
 
 
 def result(name: str, seed: int, scenario: ModuleType, swarm: Swarm) -> dict[str, Any]:

@@ -122,6 +122,20 @@ behaviour:
     timeout: 4.0              # s driving in without a LINK_ACK before the attempt has failed
     attempts: 3               # failed attempts before backing off
     backoff_distance: 150.0   # mm
+  shape:                      # spec 7.4, 7.5; all values assumed, tuned in simulation
+    gain: 12.0                # 1/s; g of the local rule
+    max_speed: 20.0           # mm/s of shape correction; faster tears links apart
+    min_speed: 6.0            # mm/s; below this a robot stands still instead of turning after noise
+    turn_gain: 4.0            # 1/s, the base turning toward its velocity
+    offset_gain: 0.02         # lowest weight of one flash bearing in the direction of the robot behind
+    close_cone: 30.0          # deg; the head docks onto its tail only if the tail lies where the shape puts it
+    offset_samples: 10        # flash bearings of the robot behind needed before its direction is used
+    close_range: 130.0        # mm; the head of a closed shape docks onto its own tail from here
+    edge_push: 40.0           # mm/s away from a table edge, passed along the chain
+    edge_hold: 1.0            # s a robot keeps pushing away after its sensors last saw the edge
+    push_decay: 0.8           # share of a neighbour's push that a robot passes on
+    twist_max_speed: 60.0     # mm/s, joystick at full deflection
+    twist_max_rate: 20.0      # deg/s, rotate slider at full deflection
   follow:
     hall_target: 0.75         # hall reading a follower keeps on the hub ahead (gap about 1.5 mm)
     gain: 120.0               # mm/s per unit of hall error
