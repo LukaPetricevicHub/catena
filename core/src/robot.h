@@ -49,6 +49,8 @@ class Robot {
 
  private:
   void receive(Hal& hal);
+  void sense_object(const float* reflect);
+  bool object_known() const;
   void update_links(Hal& hal, float dt_s);
   void find_seeker();
   void announce(Hal& hal);
@@ -103,6 +105,9 @@ class Robot {
   float hall_ = 0.0f;
   float last_v_mm_s_ = 0.0f;
 
+  float object_x_mm_ = 0.0f;      // an object seen by reflection, base frame, dead reckoned
+  float object_y_mm_ = 0.0f;
+  uint64_t object_seen_us_ = 0;   // 0: none yet
   // Link layer.
   uint8_t req_id_ = CATENA_NONE;  // who asked to link, and what hangs behind it
   uint8_t req_chain_ = 0;

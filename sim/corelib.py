@@ -52,12 +52,13 @@ class Inputs(ctypes.Structure):
         ("gyro_z_rad_s", f32),
         ("ring_angle_rad", f32),
         ("hall", f32),
+        ("reflect", f32 * IR_COUNT),
         ("ticks_left", i32),
         ("ticks_right", i32),
         ("table_left", u8),
         ("table_right", u8),
         ("rx_count", u8),
-        ("reserved", u8),
+        ("has_reflect", u8),
         ("rx", Rx * RX_MAX),
     ]
 

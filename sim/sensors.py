@@ -53,6 +53,38 @@ class FlashModel:
         return FlashSample(ir, true_bearing, true_range)
 
 
+class ReflectModel:
+    """What a robot's receivers see of its own pulse coming back (spec section 5): every
+    ball and every other robot nearby reflects, 1.0 for a gap of sensing.object_range,
+    falling with the square of the gap. Same lobes and noise as the flash model."""
+
+    def __init__(self, cfg: dict[str, Any], rng: random.Random) -> None:
+        sensing = cfg["sensing"]
+        self.rng = rng
+        self.range = sensing["object_range"]
+        self.base_r = cfg["geometry"]["base"]["envelope_diameter"] / 2
+        self.bearing_sigma = math.radians(sensing["ir_bearing_sigma_deg"])
+        self.range_sigma = sensing["ir_range_sigma_frac"]
+        self.angles = [2.0 * math.pi * k / sensing["ir_pairs"] for k in range(sensing["ir_pairs"])]
+
+    def sample(self, listener: tuple[float, float, float],
+               reflectors: list[tuple[float, float, float]]) -> list[float]:
+        """reflectors: (x, y, radius) of everything round the listener."""
+        x, y, heading = listener
+        ir = [0.0] * len(self.angles)
+        for ox, oy, radius in reflectors:
+            gap = math.hypot(ox - x, oy - y) - self.base_r - radius
+            if gap > 2.0 * self.range:
+                continue
+            gap = max(2.0, gap * (1.0 + self.rng.gauss(0.0, self.range_sigma)))
+            bearing = wrap_pi(math.atan2(oy - y, ox - x) - heading
+                              + self.rng.gauss(0.0, self.bearing_sigma))
+            strength = (self.range / gap) ** 2
+            for k, a in enumerate(self.angles):
+                ir[k] += strength * max(0.0, math.cos(bearing - a))
+        return ir
+
+
 class BodySensors:
     """Edge sensors, gyro, ring angle sensor, hall sensor and wheel ticks of one robot."""
 

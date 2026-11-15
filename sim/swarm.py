@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Any, NamedTuple
 
 from sim import corelib
-from sim.sensors import BodySensors, FlashModel
+from sim.sensors import BodySensors, FlashModel, ReflectModel
 from sim.shapes import Stroke
 from sim.world import Robot, World
 
@@ -71,6 +71,8 @@ class Swarm:
         self.world = World(cfg)
         self.params = corelib.params_from_config(cfg)
         self.flash_model = FlashModel(cfg, self.sensor_rng)
+        self.reflect_model = ReflectModel(cfg, self.sensor_rng)
+        self.reflect: dict[int, list[float]] = {}  # own-pulse samples waiting for the next tick
         self.drop_rate = cfg["radio"]["drop_rate"]
         self.collision_window = cfg["radio"]["flash_collision_window"]
         self.physics_hz = cfg["sim"]["physics_hz"]
@@ -177,6 +179,10 @@ class Swarm:
                 if d.ir is not None:
                     slot.ir[:] = d.ir
             inp.rx_count = count
+            echo = self.reflect.pop(r.id, None)
+            inp.has_reflect = echo is not None
+            if echo is not None:
+                inp.reflect[:] = echo
             out = core.step()
             world.set_wheels(r, out.wheel_left_mm_s, out.wheel_right_mm_s)
             dbg = out.debug
@@ -218,6 +224,13 @@ class Swarm:
             self.stats["flashes"] += 1
             self.stats["spoiled"] += not clean
             sender = flash.poses[flash.sender]
+            if clean and not self.world.robots[flash.sender].fallen:
+                base_r = self.reflect_model.base_r
+                around = [(p[0], p[1], base_r) for rid, p in flash.poses.items()
+                          if rid != flash.sender and not self.world.robots[rid].fallen]
+                around += [(b.position.x, b.position.y, b.radius) for b in self.world.balls
+                           if not b.fallen]
+                self.reflect[flash.sender] = self.reflect_model.sample(sender, around)
             for listener in sorted(flash.poses):
                 if listener == flash.sender or self.world.robots[listener].fallen:
                     continue

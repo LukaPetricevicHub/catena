@@ -36,4 +36,34 @@ bool estimate_flash(const float ir[CATENA_IR_COUNT], float reference_range_mm, F
   return true;
 }
 
+bool estimate_object(const float reflect[CATENA_IR_COUNT], const bool usable[CATENA_IR_COUNT],
+                     float range_mm, ObjectFix* fix) {
+  int best = -1;
+  for (int k = 0; k < CATENA_IR_COUNT; ++k) {
+    if (usable[k] && (best < 0 || reflect[k] > reflect[best])) best = k;
+  }
+  if (best < 0 || !(reflect[best] > 0.0f)) return false;
+  const int left = (best + 1) % CATENA_IR_COUNT;
+  const int right = (best + CATENA_IR_COUNT - 1) % CATENA_IR_COUNT;
+  int side = 0;  // which neighbour to use: +1 the next receiver counter-clockwise, -1 the other
+  if (usable[left] && (!usable[right] || reflect[left] >= reflect[right])) side = 1;
+  else if (usable[right]) side = -1;
+  // Cosine lobes one spacing apart: r_best = A cos(d), r_side = A cos(spacing - d).
+  const float spacing = 2.0f * kPi / CATENA_IR_COUNT;
+  float offset = 0.0f;
+  if (side != 0) {
+    const float ratio = reflect[side > 0 ? left : right] / reflect[best];
+    offset = std::atan2(ratio - std::cos(spacing), std::sin(spacing));
+    if (offset < 0.0f) offset = 0.0f;
+    if (offset > 0.5f * spacing) offset = 0.5f * spacing;
+  }
+  const float strength = reflect[best] / std::cos(offset);
+  if (strength < 1.0f) return false;
+  float bearing = receiver_angle_rad(best) + static_cast<float>(side) * offset;
+  if (bearing > kPi) bearing -= 2.0f * kPi;
+  fix->bearing_rad = bearing;
+  fix->gap_mm = range_mm / std::sqrt(strength);
+  return true;
+}
+
 }  // namespace catena

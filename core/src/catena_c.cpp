@@ -20,6 +20,7 @@ class StructHal final : public catena::Hal {
   float gyro_z_rad_s() override { return in_->gyro_z_rad_s; }
   float ring_angle_rad() override { return in_->ring_angle_rad; }
   float hall() override { return in_->hall; }
+  const float* reflection() override { return in_->has_reflect ? in_->reflect : nullptr; }
   bool table_left() override { return in_->table_left != 0; }
   bool table_right() override { return in_->table_right != 0; }
   int rx_count() override { return in_->rx_count < CATENA_RX_MAX ? in_->rx_count : CATENA_RX_MAX; }

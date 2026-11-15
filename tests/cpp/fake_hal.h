@@ -21,6 +21,7 @@ struct FakeHal final : catena::Hal {
   catena_debug_t debug = {};
   float ring = 0.0f;
   float hall_value = 0.0f;
+  std::vector<float> reflect;        // one sample of my own pulse; empty: none this step
   std::vector<uint8_t> flash_frame;  // the most recent FLASH payload
   std::vector<catena_tx_t> sent;     // unicast frames of the most recent step (the test clears it)
 
@@ -31,6 +32,9 @@ struct FakeHal final : catena::Hal {
   float gyro_z_rad_s() override { return gyro; }
   float ring_angle_rad() override { return ring; }
   float hall() override { return hall_value; }
+  const float* reflection() override {
+    return reflect.size() == CATENA_IR_COUNT ? reflect.data() : nullptr;
+  }
   bool table_left() override { return left; }
   bool table_right() override { return right; }
   int rx_count() override { return static_cast<int>(inbox.size()); }

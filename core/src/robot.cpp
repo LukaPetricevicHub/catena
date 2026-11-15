@@ -93,8 +93,14 @@ void Robot::step(Hal& hal) {
     n.x_mm = c * fx + s * n.y_mm;
     n.y_mm = c * n.y_mm - s * fx;
   }
+  {
+    const float fx = object_x_mm_ - moved;
+    object_x_mm_ = c * fx + s * object_y_mm_;
+    object_y_mm_ = c * object_y_mm_ - s * fx;
+  }
 
   receive(hal);
+  if (const float* reflect = hal.reflection()) sense_object(reflect);
   update_links(hal, dt_s);
   find_seeker();
   if (aft() != aft_id_) {
@@ -319,6 +325,33 @@ void Robot::receive(Hal& hal) {
       }
     }
   }
+}
+
+// Spec section 5: a reflection of my own pulse from a direction where no known neighbour
+// stands is an object. Receivers that face a neighbour are left out.
+void Robot::sense_object(const float* reflect) {
+  bool usable[CATENA_IR_COUNT];
+  for (int k = 0; k < CATENA_IR_COUNT; ++k) {
+    usable[k] = true;
+    for (const Neighbour& n : neighbours_) {
+      if (fresh(n) && std::fabs(wrap_pi(bearing_of(n) - receiver_angle_rad(k))) < 0.5f * kPi + 0.26f) {
+        usable[k] = false;
+      }
+    }
+  }
+  ObjectFix fix;
+  if (!estimate_object(reflect, usable, p_.object_range_mm, &fix)) return;
+  const float range = fix.gap_mm + p_.base_radius_mm + p_.object_radius_mm;
+  const float x = range * std::cos(fix.bearing_rad);
+  const float y = range * std::sin(fix.bearing_rad);
+  const float gain = object_known() ? p_.flash_filter_gain : 1.0f;
+  object_x_mm_ += gain * (x - object_x_mm_);
+  object_y_mm_ += gain * (y - object_y_mm_);
+  object_seen_us_ = now_us_;
+}
+
+bool Robot::object_known() const {
+  return object_seen_us_ != 0 && now_us_ - object_seen_us_ <= to_us(p_.seek_memory_s);
 }
 
 // My tongue can be on this robot's hub: it is close, and I was driving onto it or my

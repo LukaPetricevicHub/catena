@@ -98,12 +98,14 @@ typedef struct catena_inputs_t {
   float gyro_z_rad_s;         /* base yaw rate, counter-clockwise positive */
   float ring_angle_rad;       /* tongue direction relative to the base, counter-clockwise */
   float hall;                 /* 0..1; 1 = a tongue tip sits on my hub */
+  float reflect[CATENA_IR_COUNT]; /* receivers sampled during my own pulse (if has_reflect):
+                                 1.0 = a ball facing the receiver at sensing.object_range */
   int32_t ticks_left;         /* wheel stripe counts since start, signed by direction */
   int32_t ticks_right;
   uint8_t table_left;         /* edge sensors: 1 = table under the spot */
   uint8_t table_right;
   uint8_t rx_count;
-  uint8_t reserved;
+  uint8_t has_reflect;        /* 1: reflect holds a clean sample from this step's pulse */
   catena_rx_t rx[CATENA_RX_MAX];
 } catena_inputs_t;
 

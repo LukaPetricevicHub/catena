@@ -17,6 +17,8 @@ class Hal {
   virtual float gyro_z_rad_s() = 0;
   virtual float ring_angle_rad() = 0;
   virtual float hall() = 0;
+  // The receivers as sampled during my own IR pulse, or nullptr if there was none.
+  virtual const float* reflection() = 0;
   virtual bool table_left() = 0;
   virtual bool table_right() = 0;
   virtual int rx_count() = 0;
