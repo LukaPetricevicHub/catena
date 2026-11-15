@@ -4,7 +4,8 @@ Updated at the end of every session. Newest entry on top.
 
 ## 15 Nov 2026 (night): Sweep: acceptance lines met in simulation (19 of 20 seeds)
 
-Branch `sweep` (BRANCH_STATE).
+Branch `sweep`, merged into `main` on 15 Nov 2026; CI green on Ubuntu and macOS (`make cad`,
+`make test`, `make lint`; CI does not run the full seed sets).
 
 Done
 - core: a sweep is a twist the chain rewrites itself (D57 to D59). `catena_set_sweep` hands
