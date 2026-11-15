@@ -168,6 +168,7 @@ void Robot::step(Hal& hal) {
   }
   debug.shape_version = shape_version_;
   debug.closure = closure_;
+  debug.sweep = sweep_;
   if (object_seen_us_ != 0 && (lasso_active_ || lasso_facing_ || object_known())) {
     debug.object_x_mm = static_cast<int16_t>(clampf(object_x_mm_, -30000.0f, 30000.0f));
     debug.object_y_mm = static_cast<int16_t>(clampf(object_y_mm_, -30000.0f, 30000.0f));
@@ -617,9 +618,47 @@ void Robot::set_shape(const uint8_t* xy, bool closed, bool active, bool lasso) {
 
 void Robot::set_twist(float vx_mm_s, float vy_mm_s, float wz_rad_s) {
   ++twist_seq_;
+  sweep_ = 0;
+  twist_us_ = now_us_;
   twist_[0] = static_cast<int8_t>(clampf(vx_mm_s, -127.0f, 127.0f));
   twist_[1] = static_cast<int8_t>(clampf(vy_mm_s, -127.0f, 127.0f));
   twist_[2] = static_cast<int8_t>(clampf(wz_rad_s * 100.0f, -127.0f, 127.0f));
+}
+
+// Spec 7.7: a twist that ends parked in a table corner.
+void Robot::set_sweep(float vx_mm_s, float vy_mm_s) {
+  set_twist(vx_mm_s, vy_mm_s, 0.0f);
+  sweep_ = 1;
+}
+
+// A sensor of mine is over an edge while the chain sweeps. The first edge turns the travel
+// to run along it; the robots of my half of the chain then keep the scoop on that edge,
+// and an edge met by the other half is the second one: the corner, where the chain parks.
+// Each change is a new twist, which the chain passes on like one from the phone.
+void Robot::sweep_edge(int index, int count) {
+  const float tx = static_cast<float>(twist_[0]), ty = static_cast<float>(twist_[1]);
+  const float speed = std::hypot(tx, ty);
+  if (speed < 1.0f) return;
+  const uint8_t half = 2 * index < count ? 2 : 3;
+  if (sweep_ == 1 || sweep_ == half) {
+    // Toward the void, shape frame: the opposite of my edge push.
+    const float nx = -edge_push_x_ / p_.shape_edge_push_mm_s;
+    const float ny = -edge_push_y_ / p_.shape_edge_push_mm_s;
+    const float cross = (tx * ny - ty * nx) / speed;  // > 0: the edge is on the left of the travel
+    if (std::fabs(cross) < std::sin(p_.sweep_min_slant_rad)) return;  // straight ahead: no side to turn to
+    if (sweep_ != 1 && now_us_ - twist_us_ < to_us(p_.sweep_nudge_period_s)) return;
+    const float turn = (sweep_ == 1 ? p_.sweep_turn_rad : p_.sweep_nudge_rad) * (cross > 0.0f ? -1.0f : 1.0f);
+    const float c = std::cos(turn), s = std::sin(turn);
+    twist_[0] = static_cast<int8_t>(std::lround(c * tx - s * ty));
+    twist_[1] = static_cast<int8_t>(std::lround(s * tx + c * ty));
+    sweep_ = half;
+  } else {
+    twist_[0] = twist_[1] = 0;
+    sweep_ = 4;
+  }
+  twist_[2] = 0;
+  ++twist_seq_;
+  twist_us_ = now_us_;
 }
 
 // A SHAPE frame from a linked neighbour: the newest shape and the newest twist win.
@@ -639,9 +678,25 @@ void Robot::shape_frame(const catena_rx_t& rx) {
     for (int k = 0; k < 16; ++k) stroke_.xy[16 * chunk + k] = rx.data[10 + k];
     chunks_ |= static_cast<uint8_t>(1u << chunk);
   }
-  if (newer(rx.data[3], twist_seq_)) {
+  const uint8_t sweep = rx.data[2] & 8 ? static_cast<uint8_t>((rx.data[2] >> 6) + 1) : 0;
+  // Two robots may change a sweep's twist in the same moment; of two with one sequence
+  // number every robot keeps the same one: the later stage, then the larger bytes.
+  bool wins = false;
+  if (rx.data[3] == twist_seq_ && (sweep != 0 || sweep_ != 0)) {
+    const uint8_t theirs[3] = {sweep, rx.data[4], rx.data[5]};
+    const uint8_t mine[3] = {sweep_, static_cast<uint8_t>(twist_[0]), static_cast<uint8_t>(twist_[1])};
+    for (int k = 0; k < 3 && !wins; ++k) {
+      if (theirs[k] != mine[k]) {
+        wins = theirs[k] > mine[k];
+        break;
+      }
+    }
+  }
+  if (newer(rx.data[3], twist_seq_) || wins) {
     twist_seq_ = rx.data[3];
     for (int k = 0; k < 3; ++k) twist_[k] = static_cast<int8_t>(rx.data[4 + k]);
+    sweep_ = sweep;
+    twist_us_ = now_us_;
   }
   const float px = static_cast<float>(static_cast<int8_t>(rx.data[7]));
   const float py = static_cast<float>(static_cast<int8_t>(rx.data[8]));
@@ -664,7 +719,8 @@ void Robot::shape_gossip(Hal& hal) {
   uint8_t frame[10 + 16];
   frame[0] = CATENA_FRAME_SHAPE;
   frame[1] = shape_version_;
-  frame[2] = static_cast<uint8_t>(shape_flags_ | (chunk << 4));
+  frame[2] = static_cast<uint8_t>(shape_flags_ | (chunk << 4) |
+                                  (sweep_ ? 8 | ((sweep_ - 1) << 6) : 0));
   frame[3] = twist_seq_;
   for (int k = 0; k < 3; ++k) frame[4 + k] = static_cast<uint8_t>(twist_[k]);
   frame[7] = static_cast<uint8_t>(static_cast<int8_t>(clampf(push_out_x_, -127.0f, 127.0f)));
@@ -772,7 +828,11 @@ void Robot::shape(Hal& hal, float dt_s) {
     }
     edge_until_us_ = now_us_ + to_us(p_.shape_edge_hold_s);
   }
-  if (now_us_ < edge_until_us_) {
+  if (at_edge && framed && sweep_ >= 1 && sweep_ <= 3) sweep_edge(i, n);
+  if (sweep_ == 4) {
+    // Parked: the scoop is meant to stand at the edges. Pushes from two edges at once
+    // closed its mouth; a robot at an edge just does not drive on.
+  } else if (now_us_ < edge_until_us_) {
     push_out_x_ = edge_push_x_;
     push_out_y_ = edge_push_y_;
   } else if (now_us_ - push_in_us_ <= stale_us) {

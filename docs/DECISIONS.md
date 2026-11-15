@@ -396,3 +396,30 @@ with a lid screw pillar between them.
 Replaces the last sentence of D16. The CAD tests are part of `make test`, so cadquery must
 be present wherever tests run; a skipped test would read as a passing one.
 
+
+## D57 A sweep is a twist the chain rewrites itself (15 Nov 2026)
+
+`catena_set_sweep` hands one robot a twist marked as a sweep. A robot whose edge sensor
+loses the table turns that twist 30 degrees away from the edge and passes it on as a newer
+twist; robots of the same half of the chain add 10 degrees each time they meet the edge
+again. Of two twists with one sequence number every robot keeps the same one.
+
+## D58 The second edge is the one met by the other half of the chain (15 Nov 2026)
+
+A robot cannot tell two edges apart by direction: its two front sensors give the void to
+within about 30 degrees. A scoop aimed at a corner meets the first edge with one leg and
+the second with the other, so an edge met by the other half parks the chain. A scoop
+aimed square at one edge would park there; no test covers that.
+
+## D59 A parked scoop does not push away from edges (15 Nov 2026)
+
+Pushes from two edges at once closed the mouth of the U until head and tail linked. Once
+parked, a robot at an edge only refuses to drive forward. "Against an edge" in the sweep
+scenario means the nearest base rim is within 40 mm of it; "inside" means inside the
+polygon of the robot centres, closed across the mouth.
+
+## D60 Blocks slide and are not seen by reflection (15 Nov 2026)
+
+A block is a 20 mm box slowed by table friction 0.4 (assumed), so it stops where it is
+left. It is left out of the reflection model: it lies under the receivers at 25 mm.
+The short sweep set of `make test` is 6 seeds at 60%, `make test-full` holds 80% of 20.

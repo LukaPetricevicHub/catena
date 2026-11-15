@@ -35,7 +35,8 @@
                                     acceptance zone, int8, 127 = pi, counter-clockwise seen from above] */
 #define CATENA_FRAME_LINK_NAK 6u /* hub robot to the robot on its hub: back out (same chain) */
 #define CATENA_FRAME_SHAPE 7u    /* between linked robots, one per step: [type, shape version,
-                                    flags (1 closed, 2 active, 4 lasso, bits 4-5 chunk number),
+                                    flags (1 closed, 2 active, 4 lasso, 8 the twist is a sweep,
+                                    bits 4-5 chunk number, bits 6-7 sweep stage minus one),
                                     twist sequence, vx, vy (int8 mm/s), wz (int8, 0.01 rad/s),
                                     edge push x, y (int8 mm/s, shape frame), lasso progress (how
                                     far the head has gone round, in eighths of a pitch), then
@@ -65,6 +66,12 @@
 #define CATENA_SHAPE_CLOSING 1u /* the head docks onto its own tail */
 #define CATENA_SHAPE_OPENING 2u /* the head pulls out of its own tail */
 #define CATENA_SHAPE_EDGE 3u    /* backing away from a table edge */
+/* debug.sweep codes (spec 7.7). */
+#define CATENA_SWEEP_OFF 0u
+#define CATENA_SWEEP_TRAVEL 1u     /* toward the corner */
+#define CATENA_SWEEP_SLIDE_HEAD 2u /* along the first edge, met by the head half of the chain */
+#define CATENA_SWEEP_SLIDE_TAIL 3u /* ... by the tail half */
+#define CATENA_SWEEP_PARKED 4u     /* the other half met the second edge */
 /* debug.detail codes while wandering. */
 #define CATENA_WANDER_CRUISE 0u
 #define CATENA_WANDER_AVOID 1u
@@ -133,6 +140,7 @@ typedef struct catena_debug_t {
   uint8_t shape_version;      /* 0: no shape received */
   uint8_t closure;            /* other end of the ring's closing link, or CATENA_NONE */
   int8_t shape_error_deg;     /* my turning angle minus its target */
+  uint8_t sweep;              /* CATENA_SWEEP_* */
   int16_t object_x_mm;        /* the object I sensed, base frame; both 0: none */
   int16_t object_y_mm;
 } catena_debug_t;
@@ -166,6 +174,10 @@ CATENA_API void catena_destroy(catena_t* robot);
 CATENA_API void catena_set_shape(catena_t* robot, const uint8_t* xy, int closed, int active);
 /* Twist in the shape frame (spec 7.5). */
 CATENA_API void catena_set_twist(catena_t* robot, float vx_mm_s, float vy_mm_s, float wz_rad_s);
+
+/* Sweep (spec 7.7): a twist in the shape frame that the chain itself turns along the first
+ * table edge it meets and ends at the second. */
+CATENA_API void catena_set_sweep(catena_t* robot, float vx_mm_s, float vy_mm_s);
 
 /* Flash ranging: bearing (rad, base frame) and centre distance (mm) from one IR sample.
  * Returns 0 if the sample holds no signal. */

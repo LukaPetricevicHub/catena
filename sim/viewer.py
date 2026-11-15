@@ -36,6 +36,7 @@ LINK = (230, 120, 40)
 TEXT = (24, 33, 31)
 TARGET = (120, 110, 200)  # the drawn shape
 BALL = (238, 132, 32)
+BLOCK = (176, 132, 84)
 
 
 class Viewer:
@@ -120,6 +121,11 @@ class Viewer:
             if not ball.fallen:
                 pygame.draw.circle(self.screen, BALL, self.px(*ball.position),
                                    max(2, round(ball.radius * s)))
+        for block in world.blocks:
+            if not block.fallen:
+                corners = [self.px(*block.body.local_to_world(v))
+                           for v in block.shape.get_vertices()]
+                pygame.draw.polygon(self.screen, BLOCK, corners)
         for r in world.robots:
             if not r.fallen:
                 self.draw_robot(r)

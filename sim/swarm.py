@@ -33,6 +33,7 @@ class Debug(NamedTuple):
     closure: int = 255
     shape_error_deg: int = 0
     object_mm: tuple[int, int] = (0, 0)  # the object this robot sensed, in its base frame
+    sweep: int = 0  # corelib.SWEEP_*
 
 
 @dataclass
@@ -135,6 +136,9 @@ class Swarm:
                   robot_id: int = 0) -> None:
         self.cores[robot_id].set_twist(vx_mm_s, vy_mm_s, wz_rad_s)
 
+    def set_sweep(self, vx_mm_s: float, vy_mm_s: float, robot_id: int = 0) -> None:
+        self.cores[robot_id].set_sweep(vx_mm_s, vy_mm_s)
+
     def alive(self) -> list[Robot]:
         return [r for r in self.world.robots if not r.fallen]
 
@@ -190,7 +194,8 @@ class Swarm:
             self.debug[r.id] = Debug(dbg.state, dbg.detail, dbg.index, dbg.chain_size,
                                      dbg.neighbours, dbg.chain_id, dbg.ahead, dbg.behind,
                                      dbg.target, dbg.shape_version, dbg.closure,
-                                     dbg.shape_error_deg, (dbg.object_x_mm, dbg.object_y_mm))
+                                     dbg.shape_error_deg, (dbg.object_x_mm, dbg.object_y_mm),
+                                     dbg.sweep)
             if out.flash:
                 data = bytes(out.flash_data[: out.flash_len])
                 new.append(Flash(r.id, now + out.flash_delay_us * 1e-6, data, poses))

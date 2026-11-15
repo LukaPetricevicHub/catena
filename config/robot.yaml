@@ -152,6 +152,11 @@ behaviour:
     scan_share: 0.7           # readings at least this share of the strongest locate the peak
     circle_limit: 2.0         # times the expected duration of the circle after which the head stops drawing it
     min_robots: 8             # a shorter chain does not try to close a ring round an object
+  sweep:                      # spec 7.7; values assumed, tuned in simulation
+    turn: 30.0                # deg the travel turns away from the first edge met, to run along it
+    nudge: 10.0               # deg more each time the scoop meets that edge again
+    nudge_period: 1.5         # s between two such corrections
+    min_slant: 10.0           # deg; an edge met closer to head-on than this gives no side to turn to
   recover:                    # spec 7.8; values assumed, tuned in simulation
     search: 3.0               # s an end that lost its neighbour waits for the other end to show up
     limit: 30.0               # s after which the two ends stop waiting for each other in any case
@@ -184,6 +189,8 @@ sim:                          # 2D simulator model, not robot hardware
   link_seat_speed: 100.0      # mm/s; fastest a new link pulls a tip into line with the hub
   ball_rolling_decel: 80.0    # mm/s^2; a table-tennis ball rolling on a table top slows by about this
   ball_elasticity: 0.3        # bounce of the ball off a robot base
+  block_table_friction: 0.4   # sliding friction of a wooden cube on the table top; assumed
+  gravity: 9810.0             # mm/s^2
   start_spacing: 110.0        # mm; random starts keep centres at least this far apart
 
 cad:                          # printed parts (spec 11): typical or datasheet sizes, nothing here is measured (D50)

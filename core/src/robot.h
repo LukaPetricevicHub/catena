@@ -43,6 +43,7 @@ class Robot {
   // The phone's commands, injected at this robot (spec 10).
   void set_shape(const uint8_t* xy, bool closed, bool active, bool lasso = false);
   void set_twist(float vx_mm_s, float vy_mm_s, float wz_rad_s);
+  void set_sweep(float vx_mm_s, float vy_mm_s);
 
   uint8_t wander_phase() const { return phase_; }
   const Neighbour* nearest_ahead() const;
@@ -61,6 +62,7 @@ class Robot {
   void lasso(Hal& hal, float dt_s);
   void shape(Hal& hal, float dt_s);
   void shape_drive(Hal& hal, float vx_mm_s, float vy_mm_s, bool forward_ok);
+  void sweep_edge(int index, int count);
   void shape_frame(const catena_rx_t& rx);
   void shape_gossip(Hal& hal);
   bool shape_ready();
@@ -148,6 +150,10 @@ class Robot {
   uint8_t chunks_ = 0;            // which quarters of the stroke have arrived
   uint8_t twist_seq_ = 0;
   int8_t twist_[3] = {};          // vx, vy in mm/s, wz in 0.01 rad/s
+  // Sweep (spec 7.7): 0 a plain twist, 1 travelling, 2 or 3 sliding along the first edge
+  // (met by the head half or the tail half of the chain), 4 parked.
+  uint8_t sweep_ = 0;
+  uint64_t twist_us_ = 0;         // when the twist I hold last changed
   Polygon poly_ = {};
   bool poly_ok_ = false;
   uint8_t poly_version_ = 0;

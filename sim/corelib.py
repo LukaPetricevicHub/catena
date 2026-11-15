@@ -21,6 +21,7 @@ NONE = 0xFF
 FRAME_FLASH = 1
 STATE_WANDER, STATE_SEEK, STATE_DOCK, STATE_FOLLOW, STATE_SHAPE, STATE_MOVE = 1, 2, 3, 4, 5, 6
 STATE_LASSO = 7
+SWEEP_OFF, SWEEP_TRAVEL, SWEEP_SLIDE_HEAD, SWEEP_SLIDE_TAIL, SWEEP_PARKED = 0, 1, 2, 3, 4
 STROKE_POINTS = 32
 
 STATE_NAMES = {1: "WANDER", 2: "SEEK", 3: "DOCK", 4: "FOLLOW", 5: "SHAPE", 6: "MOVE",
@@ -83,6 +84,7 @@ class Debug(ctypes.Structure):
         ("shape_version", u8),
         ("closure", u8),
         ("shape_error_deg", ctypes.c_int8),
+        ("sweep", u8),
         ("object_x_mm", ctypes.c_int16),
         ("object_y_mm", ctypes.c_int16),
     ]
@@ -131,6 +133,8 @@ def load() -> ctypes.CDLL:
     lib.catena_set_shape.restype = None
     lib.catena_set_twist.argtypes = [ctypes.c_void_p, f32, f32, f32]
     lib.catena_set_twist.restype = None
+    lib.catena_set_sweep.argtypes = [ctypes.c_void_p, f32, f32]
+    lib.catena_set_sweep.restype = None
     lib.catena_flash_estimate.argtypes = [
         ctypes.POINTER(Params),
         ctypes.POINTER(f32),
@@ -195,6 +199,9 @@ class Core:
 
     def set_twist(self, vx_mm_s: float, vy_mm_s: float, wz_rad_s: float) -> None:
         self._lib.catena_set_twist(self._handle, vx_mm_s, vy_mm_s, wz_rad_s)
+
+    def set_sweep(self, vx_mm_s: float, vy_mm_s: float) -> None:
+        self._lib.catena_set_sweep(self._handle, vx_mm_s, vy_mm_s)
 
     def __del__(self) -> None:
         handle = getattr(self, "_handle", None)

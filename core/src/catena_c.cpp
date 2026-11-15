@@ -85,6 +85,10 @@ void catena_set_twist(catena_t* robot, float vx_mm_s, float vy_mm_s, float wz_ra
   robot->robot.set_twist(vx_mm_s, vy_mm_s, wz_rad_s);
 }
 
+void catena_set_sweep(catena_t* robot, float vx_mm_s, float vy_mm_s) {
+  robot->robot.set_sweep(vx_mm_s, vy_mm_s);
+}
+
 int catena_flash_estimate(const catena_params_t* params, const float ir[CATENA_IR_COUNT],
                           float* bearing_rad, float* range_mm) {
   catena::FlashFix fix;

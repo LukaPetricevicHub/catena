@@ -37,7 +37,7 @@ class Link:
 @dataclass
 class Event:
     time_s: float
-    kind: str  # "link", "unlink", "fall", "removed", "ball_fall"
+    kind: str  # "link", "unlink", "fall", "removed", "ball_fall", "block_fall"
     a: int
     b: int = -1
 
@@ -144,6 +144,27 @@ class Ball:
         return self.body.position
 
 
+class Block:
+    """A wooden cube seen from above: it slides while pushed and stops where it is left."""
+
+    def __init__(self, world: World, x: float, y: float, angle: float = 0.0) -> None:
+        spec = world.cfg["test_objects"]["block"]
+        self.size = spec["size"]
+        self.body = pymunk.Body(spec["mass"],
+                                pymunk.moment_for_box(spec["mass"], (self.size, self.size)))
+        self.body.position = (x, y)
+        self.body.angle = angle
+        self.shape = pymunk.Poly.create_box(self.body, (self.size, self.size))
+        self.shape.filter = pymunk.ShapeFilter(categories=CAT_OBJECT, mask=CAT_BASE | CAT_OBJECT)
+        self.shape.friction = world.cfg["sim"]["contact_friction"]
+        self.fallen = False
+        world.space.add(self.body, self.shape)
+
+    @property
+    def position(self) -> pymunk.Vec2d:
+        return self.body.position
+
+
 class World:
     def __init__(self, cfg: dict[str, Any]) -> None:
         self.cfg = cfg
@@ -165,6 +186,8 @@ class World:
         self.robots: list[Robot] = []
         self.balls: list[Ball] = []
         self.ball_decel = sim["ball_rolling_decel"]
+        self.blocks: list[Block] = []
+        self.block_decel = sim["block_table_friction"] * sim["gravity"]
         self.links: list[Link] = []
         self.events: list[Event] = []
         self._robot_of: dict[pymunk.Body, Robot] = {}
@@ -189,6 +212,11 @@ class World:
         ball = Ball(self, x, y)
         self.balls.append(ball)
         return ball
+
+    def add_block(self, x: float, y: float, angle: float = 0.0) -> Block:
+        block = Block(self, x, y, angle)
+        self.blocks.append(block)
+        return block
 
     def set_wheels(self, robot: Robot, left: float, right: float) -> None:
         limit = self.max_speed
@@ -227,6 +255,15 @@ class World:
                 speed = ball.body.velocity.length
                 slowed = max(0.0, speed - self.ball_decel * dt)
                 ball.body.velocity = ball.body.velocity * (slowed / speed) if speed > 0 else (0, 0)
+        for block in self.blocks:
+            if not block.fallen:  # sliding friction on the table, for travel and for spin
+                speed = block.body.velocity.length
+                slowed = max(0.0, speed - self.block_decel * dt)
+                block.body.velocity = (block.body.velocity * (slowed / speed) if speed > 0
+                                       else (0, 0))
+                spin = block.body.angular_velocity
+                slow = max(0.0, abs(spin) - self.block_decel / (block.size / 2) * dt)
+                block.body.angular_velocity = math.copysign(slow, spin)
         self.space.step(dt)
         self.steps += 1
         self.time_s = self.steps * dt
@@ -239,6 +276,11 @@ class World:
                 ball.fallen = True
                 self.space.remove(ball.body, ball.shape)
                 self.events.append(Event(self.time_s, "ball_fall", k))
+        for k, block in enumerate(self.blocks):
+            if not block.fallen and not self.on_table(*block.position):
+                block.fallen = True
+                self.space.remove(block.body, block.shape)
+                self.events.append(Event(self.time_s, "block_fall", k))
 
     def _near_begin(self, arbiter: pymunk.Arbiter, space: pymunk.Space, data: Any) -> None:
         key = self._pair(arbiter)
