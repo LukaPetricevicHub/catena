@@ -129,7 +129,8 @@ class Ball:
     def __init__(self, world: World, x: float, y: float) -> None:
         spec = world.cfg["test_objects"]["ball"]
         self.radius = spec["diameter"] / 2
-        self.body = pymunk.Body(spec["mass"], pymunk.moment_for_circle(spec["mass"], 0, self.radius))
+        self.body = pymunk.Body(spec["mass"],
+                                pymunk.moment_for_circle(spec["mass"], 0, self.radius))
         self.body.position = (x, y)
         self.shape = pymunk.Circle(self.body, self.radius)
         self.shape.filter = pymunk.ShapeFilter(categories=CAT_OBJECT, mask=CAT_BASE | CAT_OBJECT)

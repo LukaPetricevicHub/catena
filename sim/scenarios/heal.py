@@ -6,9 +6,10 @@
 
 The chain takes one of the four shapes (by seed). In some seeds it is also moving when it
 happens. At a random time a random robot is removed. In the `ball` variant the chain is a
-ring that has closed round a ball, and the ball must still be inside it at the end. Passes if, 60 s later, the remaining
-robots are one chain again, agree on index and count, and are within the limit of the
-shape drawn for their new number; nothing fell and no other link was lost for good."""
+ring that has closed round a ball, and the ball must still be inside it at the end.
+Passes if, 60 s later, the remaining robots are one chain again, agree on index and count,
+and are within the limit of the shape drawn for their new number; nothing fell and no
+other link was lost for good."""
 
 from __future__ import annotations
 
