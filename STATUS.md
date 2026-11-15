@@ -2,6 +2,63 @@
 
 Updated at the end of every session. Newest entry on top.
 
+## 15 Nov 2026 (night): Sweep: acceptance lines met in simulation (19 of 20 seeds)
+
+Branch `sweep` (BRANCH_STATE).
+
+Done
+- core: a sweep is a twist the chain rewrites itself (D57 to D59). `catena_set_sweep` hands
+  one robot a twist marked as a sweep; the robot whose edge sensor first loses the table
+  turns it 30 degrees to run along that edge, robots of the same half of the chain add
+  10 degrees whenever they meet the edge again, and an edge met by the other half parks
+  the chain (twist zero). The stage travels in the SHAPE frame; `debug.sweep` shows it.
+- sim: wooden blocks (`World.add_block`, drawn by the viewer), scenario `sweep`,
+  `python -m sim.clips sweep` renders one clip. Config: `behaviour.sweep`,
+  `sim.block_table_friction`, `sim.gravity`.
+- `docs/media/sweep.gif` committed (seed 0). Try it: `make sim S=sweep SEED=0`.
+- Housekeeping asked for in this session: test files, comments, README and docs no longer
+  carry step numbers or tool names (`tests/test_m4_lasso.py` is now `tests/test_lasso.py`,
+  `test_m2_link.py` is `test_link_handshake.py`); commit messages start with what changed.
+
+Verified how (all simulated; nothing has run on hardware)
+- `make test`: 39 C++ test cases, 100 pytest tests pass (164 s). `make test-full`: 100 pass
+  (257 s). `make lint` clean.
+- Line 1, 80% of 20 seeds: **19 of 20 (95%)**; 39 of 40 over seeds 0 to 39. A run passes
+  if every robot reports the sweep parked, a base rim stands within 40 mm of each of the
+  corner's two edges, at least 7 of 8 blocks lie inside the polygon of the robot centres,
+  no robot fell and no link event happened. Blocks inside: 8 in 17 seeds, 7 in 2, 6 in
+  seed 3 (the one failure; not analysed). No robot and no block left the table.
+- Parked 8.7 to 14.4 s after the sweep command (30 mm/s), 0.4 to 5 s of that along the
+  first edge. Gap from the nearest rim to the two edges: -8 to 39 mm (negative: the rim
+  hangs over the edge, the centre is on the table).
+- Line 2: the clip exists; I looked at its first and last frame.
+- The script forms the U, turns it with the rotate command until its opening faces the
+  corner (3 degrees), and sends one sweep. Everything after that is the chain's own.
+
+Open problems
+- **The slide along the first edge is short and barely tested.** A scoop aimed at the
+  corner meets both edges within a few seconds. The 10 degree corrections and a long
+  slide (a scoop aimed well off the corner) have no test.
+- **The second edge is recognised by which half of the chain meets it (D58).** A U aimed
+  square at one edge parks there; a shape that is not a scoop has no sensible halves.
+- **Robots come close to the edge**: closest centre 18 mm in the 20 seeds, 14 mm in 40
+  (base radius 36 mm). No fall, but a sideways shove of that size would be one. The rear
+  blind spot from the earlier entries applies here too.
+- **Most blocks are enclosed, not pushed.** The table lets the scoop travel about 300 mm
+  before the first edge and the U is 250 mm deep inside, so blocks near the mouth never
+  touch the bottom. Pushing all eight a long way needs a larger table.
+- The parked U is bent: shape error 2 to 30 mm at the end, since the legs stop at the
+  edges while the rest catches up.
+- No C++ unit test for the sweep stages or the tie between two twists of one sequence
+  number; the scenario covers them. The phone page has no sweep button.
+- Block friction 0.4 is assumed; blocks are not seen by reflection (D60).
+- `make test` takes 164 s here; 180 are allowed.
+- Unchanged: `sensing.edge_sensor_xy` and the open questions of the entry below; the
+  `heal` crash listed there.
+
+Next
+- Firmware builds (spec 4 and 12).
+
 ## 15 Nov 2026 (later): M5 CAD v0 and coupons: all `make cad` checks pass; nothing printed
 
 Branch `m5-cad`, merged into `main` on 15 Nov 2026; CI green on Ubuntu and macOS (`make cad`,
