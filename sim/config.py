@@ -126,6 +126,8 @@ CORE_FIELDS: tuple[CoreField, ...] = (
     CoreField("shape_twist_ramp_s", "behaviour.shape.twist_ramp"),
     CoreField("shape_twist_catchup_per_s", "behaviour.shape.twist_catchup"),
     CoreField("shape_twist_max_rate_rad_s", "behaviour.shape.twist_max_rate", RAD_PER_DEG),
+    CoreField("recover_search_s", "behaviour.recover.search"),
+    CoreField("recover_limit_s", "behaviour.recover.limit"),
     CoreField("follow_hall_target", "behaviour.follow.hall_target"),
     CoreField("follow_gain_mm_s", "behaviour.follow.gain"),
     CoreField("follow_turn_gain_per_s", "behaviour.follow.turn_gain"),

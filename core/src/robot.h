@@ -73,6 +73,13 @@ class Robot {
   const Neighbour* pick_goal() const;
   const Neighbour* pick_adoptee() const;
   bool rival(const Neighbour& goal) const;
+  // Spec 7.8: an end that lost its neighbour while a shape is held waits for the other end.
+  bool shape_wanted() const { return shape_version_ != 0 && (shape_flags_ & 2) && chunks_ == 0x0F; }
+  bool orphan_tail() const { return chain_.behind() == CATENA_NONE && now_us_ < orphan_tail_until_us_; }
+  bool orphan_head() const { return chain_.ahead() == CATENA_NONE && now_us_ < orphan_head_until_us_; }
+  void lost_ahead();
+  void lost_behind();
+  const Neighbour* orphan_goal() const;
   bool tow_clear(float bearing_rad) const;
   bool blocked(float turn_rad) const;
   bool accepts_link(const Neighbour& n) const;
@@ -161,6 +168,11 @@ class Robot {
   float push_out_x_ = 0.0f;
   float push_out_y_ = 0.0f;
   float ramp_ = 0.0f;             // 0..1, share of the commanded travel speed in use
+  uint64_t orphan_tail_until_us_ = 0;
+  uint64_t orphan_tail_limit_us_ = 0;
+  uint64_t orphan_head_until_us_ = 0;
+  uint64_t orphan_head_limit_us_ = 0;
+  uint64_t closure_split_us_ = 0;  // since when the ring's other end reports another chain
   float owed_mm_ = 0.0f;          // commanded travel not yet driven, along owed_x/y (shape frame)
   float owed_x_ = 1.0f;
   float owed_y_ = 0.0f;

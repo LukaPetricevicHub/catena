@@ -104,7 +104,7 @@ void Robot::step(Hal& hal) {
   push_out_x_ = push_out_y_ = 0.0f;
   has_turn_ = false;
   e_self_ = kUnknown;  // what my neighbours hear unless I hold the shape
-  if (shape_ready()) {
+  if (shape_ready() && !orphan_head()) {
     shape(hal, dt_s);
   } else if (chain_.ahead() != CATENA_NONE) {
     follow(hal);
@@ -139,7 +139,8 @@ void Robot::step(Hal& hal) {
     frame[0] = CATENA_FRAME_CLOSE;
     put16(frame + 1, e_self_);
     put16(frame + 3, chain_.ahead() == CATENA_NONE ? wrap_pi(psi_rad_ + ring_rad_) : hall_);
-    hal.send(closure_, frame, 5);
+    frame[5] = chain_.chain_id();
+    hal.send(closure_, frame, 6);
   }
   shape_gossip(hal);
 
@@ -276,6 +277,24 @@ void Robot::receive(Hal& hal) {
           n->chain_id == chain_.chain_id() && accepts_link(*n)) {
         closure_ = rx.src;  // my tail says my tongue is on its hub
       }
+      if (rx.src == closure_ && rx.len >= 6 && rx.data[5] != chain_.chain_id()) {
+        // The ring lost a robot: my end and the other end are now two chains joined only by
+        // this link. It becomes an ordinary link and the ring an open chain (spec 7.8).
+        if (closure_split_us_ == 0) closure_split_us_ = now_us_;
+        if (now_us_ - closure_split_us_ > to_us(p_.link_timeout_s)) {
+          if (head_end) {
+            chain_.set_ahead(closure_, now_us_);
+            mislinked_s_ = 0.0f;
+          } else {
+            chain_.set_behind(closure_, n->has_info ? n->size : 1, rx.data[5], now_us_);
+          }
+          closure_ = CATENA_NONE;
+          closure_split_us_ = 0;
+          continue;
+        }
+      } else if (rx.src == closure_) {
+        closure_split_us_ = 0;
+      }
       if (rx.src == closure_) {
         closure_heard_us_ = now_us_;
         if (head_end) {
@@ -346,11 +365,13 @@ void Robot::update_links(Hal& hal, float dt_s) {
   if (chain_.behind() != CATENA_NONE) {
     if (tip_off_s_ * p_.tick_hz > 3.0f) {
       chain_.clear_behind();
+      lost_behind();
     } else if (now_us_ - chain_.behind_heard_us() > timeout_us) {
       refused_id_ = chain_.behind();
       refused_until_us_ = now_us_ + 4 * timeout_us;
       chain_.clear_behind();
       tip_on_s_ = 0.0f;
+      lost_behind();
     }
   } else if (closure_ != CATENA_NONE) {
     // The tip on my hub is my own head's.
@@ -394,8 +415,38 @@ void Robot::update_links(Hal& hal, float dt_s) {
       mislinked_s_ = off ? mislinked_s_ + dt_s : 0.0f;
       lost = mislinked_s_ > p_.link_timeout_s;
     }
-    if (lost) chain_.clear_ahead();
+    if (lost) {
+      chain_.clear_ahead();
+      lost_ahead();
+    }
   }
+}
+
+// Spec 7.8. A robot that loses `behind` while a shape is held becomes a tail and its chain
+// stands still; one that loses `ahead` becomes a head and looks for that tail. Each waits
+// `recover.search` for the other to show up and goes on waiting while it is in sight, at
+// most `recover.limit`.
+void Robot::lost_behind() {
+  if (!shape_wanted()) return;
+  orphan_tail_until_us_ = now_us_ + to_us(p_.recover_search_s);
+  orphan_tail_limit_us_ = now_us_ + to_us(p_.recover_limit_s);
+}
+
+void Robot::lost_ahead() {
+  if (!shape_wanted()) return;
+  orphan_head_until_us_ = now_us_ + to_us(p_.recover_search_s);
+  orphan_head_limit_us_ = now_us_ + to_us(p_.recover_limit_s);
+}
+
+// The tail that lost the robot between us, if it is in sight.
+const Neighbour* Robot::orphan_goal() const {
+  const Neighbour* best = nullptr;
+  for (const Neighbour& n : neighbours_) {
+    if (!tracked(n) || !n.has_info || n.chain_id == chain_.chain_id()) continue;
+    if ((n.flags & (CATENA_FLAG_ORPHAN | CATENA_FLAG_TAIL)) != (CATENA_FLAG_ORPHAN | CATENA_FLAG_TAIL)) continue;
+    if (!best || range_of(n) < range_of(*best)) best = &n;
+  }
+  return best;
 }
 
 // A lower-ranked head close by that announces my hub as its target: the chain stands still
@@ -411,13 +462,28 @@ void Robot::find_seeker() {
                     now_us_ - n.info_us <= to_us(p_.wander_memory_s) &&
                     outranks(chain_.rank(), Rank{n.size, n.chain_id}));
   }
+  // The other end of a gap left by a removed robot: keep waiting while it is in sight.
+  // If it turns out to be in my own chain (a ring that lost a robot), the wait is over.
+  for (const Neighbour& n : neighbours_) {
+    if (!tracked(n) || !n.has_info || !(n.flags & CATENA_FLAG_ORPHAN)) continue;
+    if (now_us_ - n.info_us > to_us(p_.wander_memory_s)) continue;
+    const bool same = n.chain_id == chain_.chain_id();
+    const uint64_t more = now_us_ + to_us(p_.recover_search_s);
+    if ((n.flags & CATENA_FLAG_HEAD) && orphan_tail()) {
+      orphan_tail_until_us_ = same ? 0 : (more < orphan_tail_limit_us_ ? more : orphan_tail_limit_us_);
+    }
+    if ((n.flags & CATENA_FLAG_TAIL) && orphan_head()) {
+      orphan_head_until_us_ = same ? 0 : (more < orphan_head_limit_us_ ? more : orphan_head_limit_us_);
+    }
+  }
   if (chain_.behind() != CATENA_NONE || hall_ > p_.hall_link) return;
+  hold_here_ = orphan_tail();  // my chain stands still for the head that lost us
   const Rank mine = chain_.rank();
   float best_mm = p_.seek_hold_range_mm;
   for (const Neighbour& n : neighbours_) {
     if (!tracked(n) || !n.has_info || n.target != id_ || !(n.flags & CATENA_FLAG_HEAD)) continue;
     if (now_us_ - n.info_us > to_us(p_.wander_memory_s)) continue;
-    if (!outranks(mine, Rank{n.size, n.chain_id})) continue;
+    if (!outranks(mine, Rank{n.size, n.chain_id}) && !orphan_tail()) continue;
     if (range_of(n) < best_mm) {
       best_mm = range_of(n);
       seeker_ = n.id;
@@ -435,6 +501,9 @@ void Robot::announce(Hal& hal) {
   if (fore() == CATENA_NONE) flags |= CATENA_FLAG_HEAD;
   if (chain_.behind() == CATENA_NONE && hall_ <= p_.hall_link) flags |= CATENA_FLAG_TAIL;
   if (state_ == CATENA_STATE_DOCK) flags |= CATENA_FLAG_DOCKING;
+  if (((flags & CATENA_FLAG_TAIL) && orphan_tail()) || ((flags & CATENA_FLAG_HEAD) && orphan_head())) {
+    flags |= CATENA_FLAG_ORPHAN;
+  }
   const uint8_t frame[9] = {CATENA_FRAME_FLASH, id_, chain_.chain_id(), chain_.size(),
                             chain_.index(), flags, target_, chain_.ahead(), chain_.behind()};
   hal.flash(frame, sizeof frame, delay_us);
@@ -584,6 +653,12 @@ void Robot::shape(Hal& hal, float dt_s) {
     return;
   }
   e_self_ = 0.0f;
+  if (hold_here_ || chain_.hold_behind()) {
+    // A robot is docking onto my chain's tail, or the tail waits for the half that was
+    // cut off: stand still. The shape for the new count comes after the link.
+    drive(hal, 0.0f, 0.0f);
+    return;
+  }
   const bool has_aft = aft_id_ != CATENA_NONE && now_us_ - aft_us_ <= stale_us &&
                        static_cast<float>(aft_samples_) >= p_.shape_offset_samples;
   const float aft_rad = wrap_pi(aft_tongue_rad_ + kPi - psi_rad_ - aft_offset_rad_);
@@ -799,6 +874,20 @@ void Robot::lead(Hal& hal, float dt_s) {
                  -p_.wander_spin_rate_rad_s, p_.wander_spin_rate_rad_s);
     }
     drive(hal, 0.0f, w);
+    return;
+  }
+  if (orphan_head()) {
+    // I lost the robot ahead while holding a shape: go for the tail it left, or wait for
+    // it to show. Rank does not matter here, and I do not wander off with my half.
+    const Neighbour* tail = orphan_goal();
+    if (!tail) {
+      state_ = CATENA_STATE_WANDER;
+      holding_ = true;
+      goal_ = CATENA_NONE;
+      drive(hal, 0.0f, 0.0f);
+      return;
+    }
+    seek(hal, *tail, dt_s);
     return;
   }
   const Neighbour* goal = pick_goal();

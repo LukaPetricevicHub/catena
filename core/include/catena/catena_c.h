@@ -40,7 +40,7 @@
                                     x, y (int8 mm/s, shape frame), then 8 stroke points (x, y)] */
 #define CATENA_FRAME_CLOSE 8u    /* head and tail of a closed ring, every step: [type, turning
                                     error (int16), tongue direction (from the head) or hall
-                                    reading (from the tail) (int16)] */
+                                    reading (from the tail) (int16), chain id] */
 /* While a shape is held LINK_ACK and LINK_UP carry two more bytes, the sender's turning
  * error, and LINK_UP two more, its tongue direction. int16, little endian, 1e-4 rad. */
 
@@ -48,6 +48,7 @@
 #define CATENA_FLAG_HEAD 1u    /* tongue free */
 #define CATENA_FLAG_TAIL 2u    /* hub free */
 #define CATENA_FLAG_DOCKING 4u /* lining up or driving in on `target` */
+#define CATENA_FLAG_ORPHAN 8u  /* this end lost its neighbour while holding a shape (spec 7.8) */
 
 /* debug.state codes. */
 #define CATENA_STATE_WANDER 1u

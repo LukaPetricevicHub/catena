@@ -138,6 +138,9 @@ behaviour:
     twist_ramp: 2.0           # s from rest to the commanded speed, while the bases turn into the motion
     twist_catchup: 1.0        # 1/s; a robot behind on the commanded travel adds this share of the distance owed
     twist_max_rate: 20.0      # deg/s, rotate slider at full deflection
+  recover:                    # spec 7.8; values assumed, tuned in simulation
+    search: 3.0               # s an end that lost its neighbour waits for the other end to show up
+    limit: 30.0               # s after which the two ends stop waiting for each other in any case
   follow:
     hall_target: 0.75         # hall reading a follower keeps on the hub ahead (gap about 1.5 mm)
     gain: 120.0               # mm/s per unit of hall error
