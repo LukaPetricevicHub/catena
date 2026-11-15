@@ -2,6 +2,97 @@
 
 Updated at the end of every session. Newest entry on top.
 
+## 15 Nov 2026 (later): M5 CAD v0 and coupons: all `make cad` checks pass; nothing printed
+
+Branch `m5-cad`; CI green on Ubuntu and macOS (run 43726703149: `make cad`, `make test`
+with 97 tests, `make lint`; CI does not run the 50-seed sets).
+
+Done
+- `cad/parts.py`: nine printed parts (chassis, lid, board carrier, skid, wheel hub, tyre,
+  lower ring with hub core and tongue, upper ring plate, bearing retainer) and two bought
+  ones as blocks (motors, hub washers). `cad/coupons.py`: groove at 5.3, 5.4, 5.6 mm, tongue
+  stubs with the magnet behind 1.2, 1.6, 2.0 mm, ring bearing, three shaft bores, one plate.
+- `cad/checks.py` and `cad/verify.py`: the six checks of spec 11 plus two of my own (parts
+  of one robot do not overlap; heights and clearances match the config).
+- `make cad` (checks, then 66 files in `cad/out/`: STEP, STL, 3MF for 21 parts and the
+  coupon plate), `make render` (the two pictures). `make setup` now installs cadquery.
+- All CAD numbers are in `config/robot.yaml` under `cad:`. Decisions D49 to D56.
+- `docs/HARDWARE.md`: printed-parts table, how the parts go together, coupon files.
+- Look at it: `docs/media/cad_robot.png`, `docs/media/cad_linked.png`; or open
+  `cad/out/*.step` after `make cad`.
+
+Verified how (geometry only; no part has been printed, bought or measured)
+- `make cad`: 8 of 8 checks pass, about 40 s.
+  - Bed: 21 parts and the coupon plate (165 x 132 mm) fit 180 x 180 mm.
+  - Walls: none under 1.2 mm; thinnest found 1.35 mm (lid screw pillar).
+  - Overhangs: none above 50 degrees outside 6 listed boxes: one support (under the
+    tongue, 3.2 mm high) and five bridges of 3.1 to 6.2 mm.
+  - Two linked robots share no volume at 21 yaw angles from -100 to +100 degrees.
+  - A base shares no volume with its ring at 36 headings and stays inside radius 36.00 mm.
+  - Tongue tip at 66.00 mm plus hub radius 14.00 mm is the 80 mm pitch; the tip touches the
+    neighbour's hub at 80.0 mm and cuts into it at 79.8 mm; 25.0 mm of tongue is engaged.
+- The checks notice bad parts (`tests/test_m5_cad.py`, `tests/test_m5_checks.py`): a 1.0 mm
+  chassis wall, infrared holes left on their 60 degree lines, a joint bent to 110 degrees,
+  robots 1 mm too close, the tongue without its listed support, a base part outside the
+  envelope; and on plain shapes a thin cup, two close holes, a flat overhang, a 55 degree cone.
+- I looked at both pictures: tongue seated on the neighbour's hub, wheels in their wells.
+- `make test`: 39 C++ test cases, 97 pytest tests pass (150 s; 29 of them are new). `make lint`
+  clean. `make test-full`: 97 pass (313 s). The simulator's config values are the same as
+  in M4, so its numbers below stand.
+
+Open questions that need a measured part (nothing below is guessed into the design as fact)
+- **Edge sensors do not fit where the simulator has them.** A 10.2 x 5.8 mm sensor
+  (TCRT5000) cannot sit at (30, 15); the CAD windows are at (27, 13.5), the farthest out
+  it fits. I simulated that spot: chain 47 of 50, heal 44, heal with ball 50, but **lasso
+  40 of 50 (it was 45), and 6 of the first 10**. At (24.5, 12.25): lasso 39, and a heal run
+  crashed the scenario (see below). So the simulator still senses at (30, 15) and the two
+  numbers disagree on purpose (D49). Yours to decide: a smaller sensor (a 3.4 x 2.7 mm type
+  would reach about (29, 14.5)), or accept the nearer spot and retune the lasso.
+- **Mass.** Printed solid, the ring parts come to 50 g plus 17 g for the two washers; the
+  config allows 22 g for the ring assembly, and the washers alone nearly use it. Base
+  prints: 55 g solid, 73 g allowed including motors, cell and electronics. Real prints
+  with infill weigh less; weigh them. The bridge calculation assumes 95 g in total.
+- **Dock sensing.** One hall sensor in the base cannot sit under the tongue tip: the tip
+  lands anywhere within 100 degrees of the ring's rear and the base turns under the ring.
+  No pocket is designed. Needs a decision before M7 (sensor on the axis and a measurement
+  of what it sees, or another way to sense a dock).
+- Groove: which of 5.3, 5.4, 5.6 mm slides with least play; and whether the tongue's
+  underside, printed on support, binds. The coupon stubs print flat on the bed and will be
+  smoother than the real tongue.
+- Tip magnet: which wall (1.2, 1.6, 2.0 mm) gives 0.25 to 0.55 N against two washers. The
+  magnet lies flat in the tongue, so its rim faces the hub; 1.6 mm is a placeholder.
+- Ring bearing: free spin, 3 N pull, wobble. The journal is 3.6 mm long in the lid; tilt is
+  limited by the 26 mm land and 0.2 mm play (about 0.4 degrees by calculation).
+- Upper plate stiffness: it is held at the hub core and the front sector only. By hand
+  calculation its rim gives about 1.3 mm under the 13 N of the bridge load case, which
+  would add to the 0.9 degrees of joint play. Measure on a printed ring.
+- AS5600: the magnet sits 4.7 mm above the board carrier, a steel M3 screw ends about 2 mm
+  above the magnet. Module height and the screw's effect are unmeasured.
+- Detent: magnets 3 mm apart is a placeholder; no coupon, test on the real lid and ring.
+- Motors: 12 x 10 x 24 mm plus 1.5 mm terminals and a 10 mm shaft are typical N20 sizes.
+  The two motors leave 0.1 mm to the wheel wells; a longer motor does not fit.
+- Wheel: D-bore fit (coupon), printed tyre against O-ring, grip. The tick sensor would
+  look at the stripes from under 1 mm; its datasheet peak is at 2.5 mm.
+- Cell: the free bay is about 21 x 30 x 15 mm. No tray until a cell is chosen.
+- Not designed: mounts for controller, AS5600 module, IMU, charger; a USB opening; holders
+  for the edge and tick sensors (they have windows only).
+- Nose: 43 degree chamfers and skids climb 5.7 mm. Whether a robot hanging from the chain
+  gets up that slope is a question for M9 and for hardware.
+- Infrared: 3.2 mm holes for 3 mm parts; the four pairs beside the wheels sit 3.9 mm off
+  their lines (D55). The simulator places all six on the centre lines.
+
+Open problems
+- The `heal` scenario crashes (`ValueError: operands could not be broadcast together with
+  shapes (11,) (10,)`) when a second robot leaves the table. Seen only with the edge
+  sensors at (24.5, 12.25); not fixed, not in a test.
+- The overhang check trusts a listed bridge to have walls at both ends (D51).
+- The wall check samples the surface about once per mm^2 and compares opposing faces only.
+- `make test` takes 150 s here, close to the 3 minutes allowed; the CAD tests add about 50 s.
+- Everything under "Open problems" in the M4 entry below still stands.
+
+Next
+- M6 Sweep (spec 7.7). M5 is closed as far as it can be without printed parts.
+
 ## 15 Nov 2026: M4 lasso and heal: acceptance lines met in simulation
 
 Branch `m4-lasso-heal`, merged into `main` on 15 Nov 2026; CI green on Ubuntu and macOS
