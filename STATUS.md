@@ -4,7 +4,8 @@ Updated at the end of every session. Newest entry on top.
 
 ## 15 Nov 2026: M4 lasso and heal: acceptance lines met in simulation
 
-Branch `m4-lasso-heal` (pushed; CI and merge are noted at the end of this entry).
+Branch `m4-lasso-heal`, merged into `main` on 15 Nov 2026; CI green on Ubuntu and macOS
+(`make test`, `make lint`; CI does not run the 50-seed sets).
 
 Done
 - core: recovery after a lost link (D42, D43); object sensing from the reflection of a
@@ -60,7 +61,7 @@ Open problems
   (20 mm/s); the gyro model (D37); parameters tuned in simulation only.
 
 Next
-- M5 CAD v0 and coupons (spec sections 3 and 11).
+- M5 CAD v0 and coupons (spec sections 3 and 11). M4 is closed.
 
 ## 14 Nov 2026: M3 shapes, moving and phone page: acceptance lines met in simulation
 
