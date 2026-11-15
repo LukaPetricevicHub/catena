@@ -1,4 +1,5 @@
-"""Render the README clips from scenarios (`make clips`): docs/media/lasso.gif, heal.gif.
+"""Render the README clips from scenarios (`make clips`): docs/media/lasso.gif, heal.gif,
+sweep.gif.
 
 Each clip is the simulator's own viewer, drawn off screen while the scenario runs."""
 
@@ -58,13 +59,19 @@ def render(scenario: str, seed: int, path: Path, starts: Callable[[Swarm], bool]
     return {"passed": passed, "metrics": metrics}
 
 
-def main() -> int:
-    lasso = render("lasso", 0, MEDIA / "lasso.gif", lead_s=6.0, limit_s=150.0,
-                   starts=lambda s: s.debug.get(0) is not None
-                   and s.debug[0].state == corelib.STATE_LASSO)
-    heal = render("heal:ball", 0, MEDIA / "heal.gif", lead_s=5.0, limit_s=45.0,
-                  starts=lambda s: s.monitor.removed)
-    return 0 if lasso["passed"] and heal["passed"] else 1
+def main(argv: list[str] | None = None) -> int:
+    """`python -m sim.clips` renders every clip; names (lasso, heal, sweep) pick some."""
+    clips = {
+        "lasso": lambda: render("lasso", 0, MEDIA / "lasso.gif", lead_s=6.0, limit_s=150.0,
+                                starts=lambda s: s.debug.get(0) is not None
+                                and s.debug[0].state == corelib.STATE_LASSO),
+        "heal": lambda: render("heal:ball", 0, MEDIA / "heal.gif", lead_s=5.0, limit_s=45.0,
+                               starts=lambda s: s.monitor.removed),
+        "sweep": lambda: render("sweep", 0, MEDIA / "sweep.gif", lead_s=4.0, limit_s=40.0,
+                                starts=lambda s: s.monitor.sweep_s is not None),
+    }
+    names = (sys.argv[1:] if argv is None else argv) or list(clips)
+    return 0 if all([clips[name]()["passed"] for name in names]) else 1
 
 
 if __name__ == "__main__":
