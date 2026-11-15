@@ -1,4 +1,4 @@
-"""M5: the robot's parts pass the checks of spec section 11, and the checks notice a bad part."""
+"""The robot's parts pass the checks of spec section 11, and the checks notice a bad part."""
 
 from __future__ import annotations
 

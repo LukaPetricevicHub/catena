@@ -1,4 +1,4 @@
-"""M4: a wandering chain finds a ball, closes a ring round it and carries it 400 mm
+"""A wandering chain finds a ball, closes a ring round it and carries it 400 mm
 (spec 7.6).
 
     python -m sim.runner lasso --seed 3 --viewer

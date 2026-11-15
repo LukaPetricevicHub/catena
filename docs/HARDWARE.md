@@ -1,8 +1,8 @@
 # Hardware
 
 Status: draft for planning. No part has been bought or measured. Prices are rough
-estimates from memory, not checked against shops; milestone M8 replaces them with a priced
-list with links. The printed-parts table is CAD v0 from milestone M5; nothing has been printed.
+estimates from memory, not checked against shops; a priced list with links
+replaces them before the first release. The printed-parts table is CAD v0; nothing has been printed.
 
 ## Parts per robot
 
@@ -50,7 +50,7 @@ while the radio is active.
 
 ## Printed parts
 
-CAD v0 from milestone M5 (`make cad` writes STEP, STL and 3MF per part to `cad/out/`, each
+CAD v0 (`make cad` writes STEP, STL and 3MF per part to `cad/out/`, each
 in its print orientation). Nothing has been printed. The masses are the model's volume
 times the filament density, as if printed solid: an upper bound, not a weight.
 

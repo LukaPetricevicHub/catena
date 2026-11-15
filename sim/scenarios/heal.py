@@ -1,4 +1,4 @@
-"""M4: a robot is taken out of a chain that holds a shape; the rest must heal (spec 7.8).
+"""A robot is taken out of a chain that holds a shape; the rest must heal (spec 7.8).
 
     python -m sim.runner heal --seed 4 --viewer
 

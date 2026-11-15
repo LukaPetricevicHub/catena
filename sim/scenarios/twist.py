@@ -1,4 +1,4 @@
-"""M3: a ring is told to move 400 mm along its own x axis (spec 7.5).
+"""A ring is told to move 400 mm along its own x axis (spec 7.5).
 
     python -m sim.runner twist --seed 2 --viewer
 

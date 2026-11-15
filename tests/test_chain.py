@@ -1,4 +1,4 @@
-"""M2 acceptance: from random starts twelve robots form one chain, number themselves and
+"""From random starts twelve robots form one chain, number themselves and
 count themselves. All of it simulated."""
 
 import os
@@ -8,7 +8,7 @@ import pytest
 from sim.runner import run_seeds
 from sim.scenarios import chain
 
-# M2 asks for 50 seeds; `make test` runs the first 10, `make test-full` (CATENA_FULL=1) all.
+# 50 seeds are asked; `make test` runs the first 10, `make test-full` (CATENA_FULL=1) all.
 SEEDS = list(range(50 if os.environ.get("CATENA_FULL") else 10))
 REQUIRED_FRACTION = 0.9
 

@@ -1,4 +1,4 @@
-"""M3 acceptance: what the phone page sends changes the shape in the running simulator
+"""What the phone page sends changes the shape in the running simulator
 within 2 s (spec 10). The page's own JavaScript is not exercised here: the test speaks
 its protocol over a real websocket."""
 

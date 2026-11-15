@@ -23,5 +23,5 @@ in the README.
 ## Claim to check before publishing
 
 "No open project combines neighbour-only control, physical locking and shapes used as
-tools at this cost." This rests on a quick search. Search again during M8 and soften the
+tools at this cost." This rests on a quick search. Search again before the release and soften the
 sentence if anything close turns up.

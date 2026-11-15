@@ -1,4 +1,4 @@
-"""M2: the link handshake, unrequested links and FOLLOW, with core in the loop."""
+"""The link handshake, unrequested links and FOLLOW, with core in the loop."""
 
 import math
 
@@ -53,7 +53,7 @@ def test_the_lower_ranked_robot_docks_onto_the_other_and_both_agree():
 
 
 def test_robots_linked_without_a_handshake_adopt_the_link():
-    # M1 saw wandering robots dock by accident: core must take such a link as it finds it.
+    # Wandering robots dock by accident: core must take such a link as it finds it.
     swarm = line_of(3, linked=True)
     assert [d.index for d in (swarm.debug[i] for i in range(3))] == [0, 1, 2]
     assert all(swarm.debug[i].chain_size == 3 for i in range(3))

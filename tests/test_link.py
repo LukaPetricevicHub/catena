@@ -1,4 +1,4 @@
-"""M1 acceptance: two robots pushed together link; the joint breaks above the hold force and
+"""Two robots pushed together link; the joint breaks above the hold force and
 not below it. A test script drives the wheels directly; core is not involved."""
 
 import math

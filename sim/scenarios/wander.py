@@ -1,4 +1,4 @@
-"""M1: twelve robots wander on the table. Passes if none falls off."""
+"""Twelve robots wander on the table. Passes if none falls off."""
 
 from __future__ import annotations
 

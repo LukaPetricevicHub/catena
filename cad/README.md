@@ -12,8 +12,8 @@ make render    draw docs/media/cad_robot.png and cad_linked.png
   with print orientation, material and listed supports.
 - `coupons.py`: the coupons and the coupon plate.
 - `checks.py`: bed size, thin walls, overhangs, shared volume; each tested on shapes whose
-  answer is known (`tests/test_m5_checks.py`).
-- `verify.py`: the checks `make cad` runs on the robot (`tests/test_m5_cad.py`).
+  answer is known (`tests/test_checks.py`).
+- `verify.py`: the checks `make cad` runs on the robot (`tests/test_cad.py`).
 - `build.py`, `render.py`: the two commands above.
 
 Every dimension comes from `config/robot.yaml`; the CAD-only ones are under `cad:`.

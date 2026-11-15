@@ -1,4 +1,4 @@
-"""M4 acceptance: a chain holding a shape heals after a robot is taken out (spec 7.8).
+"""A chain holding a shape heals after a robot is taken out (spec 7.8).
 All simulated."""
 
 import os
@@ -7,7 +7,7 @@ import pytest
 
 from sim.runner import run_seeds
 
-# M4 asks for 50 seeds; `make test` runs the first 12, `make test-full` (CATENA_FULL=1) all.
+# 50 seeds are asked; `make test` runs the first 12, `make test-full` (CATENA_FULL=1) all.
 SEEDS = list(range(50 if os.environ.get("CATENA_FULL") else 12))
 # The acceptance line is 80% of 50 seeds and `make test-full` holds it. The short set of
 # `make test` only has to show that nothing broke: the same seeds play out differently on

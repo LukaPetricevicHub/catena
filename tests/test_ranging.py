@@ -1,4 +1,4 @@
-"""M1 acceptance: flash ranging and the radio model reproduce the configured noise."""
+"""Flash ranging and the radio model reproduce the configured noise."""
 
 import math
 import statistics

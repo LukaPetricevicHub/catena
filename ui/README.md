@@ -23,7 +23,7 @@ the stroke to 32 points and marks it closed if its ends are within 10% of its le
 
 ## What is tested
 
-`tests/test_m3_phone.py` speaks the page's protocol to a running simulator over a real
+`tests/test_phone.py` speaks the page's protocol to a running simulator over a real
 websocket. The JavaScript in the page itself has no automated test and has not been
 opened in a browser yet: its stroke maths (32 points, closed or open) was checked once by
 hand in Node, its drawing and touch handling not at all (see `STATUS.md`).

@@ -19,7 +19,7 @@ columns; those stacks are cube stacks. Stacking needs a robot to lift its own we
 wheels cannot do; the known hardware answer is a flywheel-driven cube (M-Blocks), a
 different robot. A polyhedron with docking faces all round has no room for wheels that stay
 on the table or for the turning ring.
-3D stacking is kept as simulation only: milestone M10, twelve pivoting cubes.
+3D stacking is kept as simulation only: twelve pivoting cubes.
 Would change it: budget and time for a lifting actuator.
 
 ## D3 The coupling sits on a free-turning ring (10 Nov 2026)
@@ -105,7 +105,7 @@ cannot run Python.
 
 `ruff` is added as a development-only tool because `CLAUDE.md` asks for ruff-clean Python.
 `pymunk` is pinned to one exact version because the physics engine decides the outcome of
-every seed. `cadquery` sits in the optional extra `cad` so `make setup` stays small until M5.
+every seed. `cadquery` sits in the optional extra `cad` so `make setup` stays small until the CAD exists.
 
 ## D17 Licence files (10 Nov 2026)
 
@@ -181,10 +181,10 @@ chain stands still (flag passed up in LINK_UP).
 
 ## D27 Unrequested links are adopted; rings are refused (12 Nov 2026)
 
-Robots bump into each other and tongues land without a LINK_REQ (M1 saw it). After
+Robots bump into each other and tongues land without a LINK_REQ (seen while wandering). After
 `chain.adopt_delay` the hub robot offers the link to the nearest free tongue inside its
 acceptance zone; that robot accepts if its tongue points at the sender. If it is the
-sender's own head the hub robot sends LINK_NAK and the head backs out: rings arrive in M3.
+sender's own head the hub robot sends LINK_NAK and the head backs out: rings come with shapes.
 A robot whose `ahead` is measured out of link range for `chain.link_timeout` drops the link.
 
 ## D28 Seekers see more than tails (12 Nov 2026)
@@ -255,7 +255,7 @@ toward their velocity tear links apart (hold force 0.4 N), so the correction is 
 
 It reported the rate at the instant of the tick. Integrated at 50 Hz that lost a degree or
 more at every start and stop of a turn, and D34 needs headings good to a degree. An IMU
-samples at kHz and its driver can hand core the mean; the firmware must do that (M7).
+samples at kHz and its driver can hand core the mean; the firmware must do that.
 
 ## D38 At an edge a robot holding a shape turns in place and pushes the shape away (14 Nov 2026)
 
@@ -331,7 +331,7 @@ circle of the robot ahead. The head reports its progress in the SHAPE frame; whe
 
 It spent up to 85% of its time turning at an edge it crept along, and never found the ball.
 After an edge turn its heading keeps `wander.edge_clear` (80 deg) from where the edge was
-and it does not steer back toward it for `wander.edge_memory` (6 s). M2 forms faster with
+and it does not steer back toward it for `wander.edge_memory` (6 s). Chain forming is faster with
 it (median 72 s, was 86 s). The lasso search is still a random walk; 360 s are allowed for it.
 
 ## D48 Lasso: no ring is forced; short test sets only have to show nothing broke (15 Nov 2026)
@@ -339,8 +339,8 @@ it (median 72 s, was 86 s). The lasso search is still a random walk; 360 s are a
 If the scan finds nothing, the head turns away. If it meets its own tail before three
 quarters of the circle, or the circle takes twice as long as it should, it gives the ring up
 and turns away: forcing the ring made the chain unfold across the table and a tail fell.
-`make test` asks 60% of its 10 lasso and 12 heal seeds, `make test-full` the 80% of 50 that
-M4 asks: on CI the same ten seeds gave 7 on Ubuntu where macOS had 9.
+`make test` asks 60% of its 10 lasso and 12 heal seeds, `make test-full` the 80% of 50 the
+acceptance line asks: on CI the same ten seeds gave 7 on Ubuntu where macOS had 9.
 
 ## D49 The edge sensor windows are at (27, 13.5); the simulator keeps (30, 15) for now (15 Nov 2026)
 

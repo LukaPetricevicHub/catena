@@ -26,8 +26,8 @@ help:
 	@echo "make sim S=wander run a scenario with the viewer (SEED=n, ARGS='--speed 4')"
 	@echo "make cad          build all parts, run checks, export STEP/STL/3MF to cad/out/"
 	@echo "make render       draw docs/media/cad_robot.png and cad_linked.png (needs a display or macOS)"
-	@echo "make fw           build the firmware with PlatformIO, no upload (from M7)"
-	@echo "make clips        render README clips from scenarios (from M4)"
+	@echo "make fw           build the firmware with PlatformIO, no upload (not there yet)"
+	@echo "make clips        render README clips from scenarios"
 
 setup: core
 
@@ -64,7 +64,7 @@ render: $(STAMP)
 	$(PY) -m cad.render
 
 fw:
-	@echo "make fw: the firmware project arrives in milestone M7"; exit 1
+	@echo "make fw: the firmware project is not there yet"; exit 1
 
 clips: core
 	$(PY) -m sim.clips

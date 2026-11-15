@@ -1,4 +1,4 @@
-"""M3: a linked chain is handed a stroke and must take its shape (spec 7.4).
+"""A linked chain is handed a stroke and must take its shape (spec 7.4).
 
     python -m sim.runner shape:ring --seed 2 --viewer      (line, ring, u or s)
 

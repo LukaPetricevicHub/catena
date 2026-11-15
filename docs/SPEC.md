@@ -274,7 +274,7 @@ Keep it as an explainer; do not extend it.
 - Python: pymunk, numpy, pyyaml, pytest, pygame-ce, websockets, imageio with ffmpeg.
 - CAD: cadquery.
 - Firmware: PlatformIO with the Arduino core for ESP32-S3; small in-repo drivers.
-- M9 only: mujoco. M10 only: no new dependency.
+- Bridge in 3D only: mujoco. Cube stacking: no new dependency.
 
 ## 10. Phone page
 

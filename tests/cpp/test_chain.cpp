@@ -1,4 +1,4 @@
-// M2: rank ordering, index and count gossip (with dropped frames), the link handshake.
+// Rank ordering, index and count gossip (with dropped frames), the link handshake.
 #include <algorithm>
 #include <vector>
 
@@ -139,7 +139,7 @@ TEST_CASE("index and count still settle when the radio drops frames") {
     const int rounds = line.rounds_until_settled(0, 11, 2000);
     CAPTURE(percent);
     CHECK(rounds > 0);
-    // 5 s at 50 steps a second is the M2 limit for the simulated radio (5% loss).
+    // 5 s at 50 steps a second is the limit for the simulated radio (5% loss).
     if (percent == 5) CHECK(rounds < 250);
     // Once settled, more lost frames do not disturb it.
     for (int i = 0; i < 200; ++i) {

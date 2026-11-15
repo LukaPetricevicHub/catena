@@ -1,4 +1,4 @@
-"""M1 acceptance: wandering robots stay on the table, and a seed fixes the whole run."""
+"""Wandering robots stay on the table, and a seed fixes the whole run."""
 
 import os
 
@@ -8,7 +8,7 @@ from sim.config import load_config
 from sim.runner import run, run_seeds
 
 DURATION_S = 120.0
-# M1 asks for 10 of 10 seeds; `make test-full` (CATENA_FULL=1) runs 50.
+# The acceptance line asks for 10 of 10 seeds; `make test-full` (CATENA_FULL=1) runs 50.
 SEEDS = list(range(50 if os.environ.get("CATENA_FULL") else 10))
 # Seed 15 once fell: a robot parallel to an edge reversed along it (fixed in core wander).
 REGRESSION_SEEDS = [15]
@@ -28,7 +28,7 @@ def test_twelve_wandering_robots_stay_on_the_table_for_120_s(results):
 
 
 def test_wandering_robots_keep_moving(results):
-    # Standing still would pass trivially. Since M2 wanderers link up, tow each other and
+    # Standing still would pass trivially. Wanderers link up, tow each other and
     # stand still while another docks, so the bound is on the average, with a low floor
     # for each robot.
     cruise_mm = load_config()["behaviour"]["wander"]["speed"] * DURATION_S

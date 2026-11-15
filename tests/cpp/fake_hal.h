@@ -85,7 +85,7 @@ inline catena_rx_t flash_from(uint8_t src, float bearing_rad, float range_mm, fl
   return rx;
 }
 
-// A FLASH with the sender's chain status, as M2 robots announce it.
+// A FLASH with the sender's chain status, as robots announce it.
 inline catena_rx_t status_flash(uint8_t src, float bearing_rad, float range_mm, float ref_mm,
                                 uint8_t chain_id, uint8_t size, uint8_t index, uint8_t flags,
                                 uint8_t target = CATENA_NONE, uint8_t ahead = CATENA_NONE,

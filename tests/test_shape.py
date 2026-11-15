@@ -1,11 +1,11 @@
-"""M3 acceptance: a linked chain takes the shape of a stroke (spec 7.4). All simulated."""
+"""A linked chain takes the shape of a stroke (spec 7.4). All simulated."""
 
 import pytest
 
 from sim.runner import run_seeds
 from sim.scenarios import shape
 
-SEEDS = list(range(5))  # M3 asks for 5 seeds per shape
+SEEDS = list(range(5))  # 5 seeds per shape
 
 
 @pytest.fixture(scope="module", params=["line", "ring", "u", "s"])

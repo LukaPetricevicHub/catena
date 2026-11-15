@@ -1,4 +1,4 @@
-"""M3 acceptance: a ring moves as one body (spec 7.5). All simulated."""
+"""A ring moves as one body (spec 7.5). All simulated."""
 
 import pytest
 

@@ -1,4 +1,4 @@
-"""M2: twelve robots start at random and must form one chain. Passes if one chain of all
+"""Twelve robots start at random and must form one chain. Passes if one chain of all
 robots exists within the time limit, its indices run 0..n-1 from head to tail and every
 robot reports the right count within 5 s of the last link."""
 

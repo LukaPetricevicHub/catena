@@ -1,4 +1,4 @@
-"""M1 acceptance: `make sim S=wander` opens the viewer. Runs headless (SDL dummy driver),
+"""`make sim S=wander` opens the viewer. Runs headless (SDL dummy driver),
 closes itself after two simulated seconds and must leave a screenshot of a drawn table."""
 
 import os

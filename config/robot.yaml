@@ -1,6 +1,6 @@
 # Single source of truth for robot parameters.
 # Simulator, firmware and CAD all read this file. Never hard-code these numbers elsewhere.
-# Status: v0 starting values from typical part dimensions. Milestone M5 checks them
+# Status: v0 starting values from typical part dimensions. The CAD checks them
 # against measured parts and updates this file (record changes in docs/DECISIONS.md).
 
 units: {length: mm, mass: g, angle: deg, time: s}

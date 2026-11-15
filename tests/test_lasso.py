@@ -1,4 +1,4 @@
-"""M4 acceptance: a wandering chain finds a ball, closes a ring round it and carries it
+"""A wandering chain finds a ball, closes a ring round it and carries it
 400 mm (spec 7.6). All simulated."""
 
 import os
@@ -7,7 +7,7 @@ import pytest
 
 from sim.runner import run_seeds
 
-# M4 asks for 50 seeds; `make test` runs the first 10, `make test-full` (CATENA_FULL=1) all.
+# 50 seeds are asked; `make test` runs the first 10, `make test-full` (CATENA_FULL=1) all.
 SEEDS = list(range(50 if os.environ.get("CATENA_FULL") else 10))
 # The acceptance line is 80% of 50 seeds and `make test-full` holds it. The short set of
 # `make test` only has to show that nothing broke: the same seeds play out differently on

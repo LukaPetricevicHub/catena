@@ -1,4 +1,4 @@
-// M3: a stroke becomes one vertex per robot and a turning angle at each vertex.
+// A stroke becomes one vertex per robot and a turning angle at each vertex.
 #include <cmath>
 
 #include "doctest.h"
