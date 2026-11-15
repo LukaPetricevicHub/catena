@@ -133,6 +133,8 @@ typedef struct catena_debug_t {
   uint8_t shape_version;      /* 0: no shape received */
   uint8_t closure;            /* other end of the ring's closing link, or CATENA_NONE */
   int8_t shape_error_deg;     /* my turning angle minus its target */
+  int16_t object_x_mm;        /* the object I sensed, base frame; both 0: none */
+  int16_t object_y_mm;
 } catena_debug_t;
 
 typedef struct catena_outputs_t {

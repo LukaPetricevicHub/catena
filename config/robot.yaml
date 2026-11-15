@@ -64,6 +64,8 @@ sensing:
   ir_reference_range: 100.0   # calibration: a receiver facing the sender reads 1.0 at this range
   flash_filter_gain: 0.5      # weight of a new flash measurement in a tracked neighbour position
   object_mask_margin: 25.0    # deg beyond a receiver's 90 deg lobe within which a neighbour still spoils it (bearing noise)
+  object_min_signal: 2.0      # reflection strength that counts (1.0 = a ball at object_range); robots too far
+                              # to be known by their flash still reflect about 0.5 each, and two or three add up
   object_confirm: 3           # reflections in a row before an object counts
   object_range: 110.0         # gap at which a 40 mm white ball is still detected; assumed, measure it
   edge_sensors: 2             # downward, front-left and front-right
@@ -89,6 +91,8 @@ behaviour:
     speed: 60.0               # mm/s
     turn_rate: 40.0           # deg/s, largest random turn rate while cruising
     retarget_period: 1.5      # s between new random turn rates
+    edge_memory: 6.0          # s a head with a chain remembers where it met an edge and does not steer back toward it
+    edge_clear: 80.0          # deg its new heading keeps from that direction
     backoff_distance: 40.0    # mm reversed after a front edge sensor loses the table
     backoff_speed: 40.0       # mm/s
     spin_rate: 120.0          # deg/s, turning in place
@@ -142,8 +146,10 @@ behaviour:
     twist_max_rate: 20.0      # deg/s, rotate slider at full deflection
   lasso:                      # spec 7.6; values assumed, tuned in simulation
     speed: 30.0               # mm/s of the head while it circles the object
+    fix_cone: 20.0            # deg; the object must be this nearly dead ahead for a fix of its position
+    fix_count: 3              # such fixes before the head announces the ring
+    fix_timeout: 2.0          # s without a reflection after which the head gives the object up
     min_robots: 8             # a shorter chain does not try to close a ring round an object
-    radius_gain: 1.5          # rad of steering toward the circle per unit of relative radius error
   recover:                    # spec 7.8; values assumed, tuned in simulation
     search: 3.0               # s an end that lost its neighbour waits for the other end to show up
     limit: 30.0               # s after which the two ends stop waiting for each other in any case

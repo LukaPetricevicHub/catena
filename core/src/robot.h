@@ -55,7 +55,7 @@ class Robot {
   void find_seeker();
   void announce(Hal& hal);
   void lead(Hal& hal, float dt_s);
-  void follow(Hal& hal);
+  void follow(Hal& hal, float ring_target_rad = 0.0f);
   bool lasso_possible() const;
   void lasso_start();
   void lasso(Hal& hal, float dt_s);
@@ -152,6 +152,7 @@ class Robot {
   bool poly_ok_ = false;
   uint8_t poly_version_ = 0;
   uint8_t gossip_count_ = 0;
+  float last_turn_rad_ = 0.0f;    // base turn during this step, by gyro
   float psi_rad_ = 0.0f;          // base heading by gyro, from an arbitrary start
   float e_self_ = 0.0f;           // my turning error
   bool has_turn_ = false;
@@ -179,6 +180,8 @@ class Robot {
   float ramp_ = 0.0f;             // 0..1, share of the commanded travel speed in use
   // Lasso (spec 7.6).
   bool lasso_active_ = false;     // I am the head and circling an object
+  bool lasso_facing_ = false;     // ... or turning to face one for a fix, before the ring is announced
+  int lasso_fixes_ = 0;
   uint8_t lasso_version_ = 0;     // the shape version I announced for it
   float lasso_radius_mm_ = 0.0f;
   float lasso_driven_mm_ = 0.0f;  // along the circle
@@ -200,6 +203,9 @@ class Robot {
   float turn_dir_ = 1.0f;
   float turn_target_rad_ = 0.0f;
   float turned_rad_ = 0.0f;
+  float edge_psi_rad_ = 0.0f;     // where I last met an edge, as a gyro heading
+  uint64_t edge_met_us_ = 0;
+  bool edge_remembered() const;
 };
 
 }  // namespace catena

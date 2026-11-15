@@ -32,6 +32,7 @@ class Debug(NamedTuple):
     shape_version: int = 0
     closure: int = 255
     shape_error_deg: int = 0
+    object_mm: tuple[int, int] = (0, 0)  # the object this robot sensed, in its base frame
 
 
 @dataclass
@@ -189,7 +190,7 @@ class Swarm:
             self.debug[r.id] = Debug(dbg.state, dbg.detail, dbg.index, dbg.chain_size,
                                      dbg.neighbours, dbg.chain_id, dbg.ahead, dbg.behind,
                                      dbg.target, dbg.shape_version, dbg.closure,
-                                     dbg.shape_error_deg)
+                                     dbg.shape_error_deg, (dbg.object_x_mm, dbg.object_y_mm))
             if out.flash:
                 data = bytes(out.flash_data[: out.flash_len])
                 new.append(Flash(r.id, now + out.flash_delay_us * 1e-6, data, poses))

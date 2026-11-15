@@ -83,6 +83,8 @@ class Debug(ctypes.Structure):
         ("shape_version", u8),
         ("closure", u8),
         ("shape_error_deg", ctypes.c_int8),
+        ("object_x_mm", ctypes.c_int16),
+        ("object_y_mm", ctypes.c_int16),
     ]
 
 

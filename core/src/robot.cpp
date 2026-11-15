@@ -80,6 +80,7 @@ void Robot::step(Hal& hal) {
   // Dead reckoning: my own turn and travel move every remembered neighbour the other way.
   const float turned = hal.gyro_z_rad_s() * dt_s;
   psi_rad_ = wrap_pi(psi_rad_ + turned);
+  last_turn_rad_ = turned;
   const float moved = last_v_mm_s_ * dt_s;
   const float c = std::cos(turned);
   const float s = std::sin(turned);
@@ -167,6 +168,10 @@ void Robot::step(Hal& hal) {
   }
   debug.shape_version = shape_version_;
   debug.closure = closure_;
+  if (object_seen_us_ != 0 && (lasso_active_ || lasso_facing_ || object_known())) {
+    debug.object_x_mm = static_cast<int16_t>(clampf(object_x_mm_, -30000.0f, 30000.0f));
+    debug.object_y_mm = static_cast<int16_t>(clampf(object_y_mm_, -30000.0f, 30000.0f));
+  }
   debug.shape_error_deg = static_cast<int8_t>(
       unknown(e_self_) ? 0.0f : clampf(e_self_ * 180.0f / kPi, -127.0f, 127.0f));
   debug.index = chain_.index();
@@ -338,25 +343,37 @@ void Robot::sense_object(const float* reflect) {
   for (int k = 0; k < CATENA_IR_COUNT; ++k) {
     usable[k] = true;
     for (const Neighbour& n : neighbours_) {
-      if (fresh(n) && std::fabs(wrap_pi(bearing_of(n) - receiver_angle_rad(k))) <
-                          0.5f * kPi + p_.object_mask_margin_rad) {
+      // Any neighbour seen lately counts, also one whose last flashes collided.
+      if (confirmed(n) && std::fabs(wrap_pi(bearing_of(n) - receiver_angle_rad(k))) <
+                              0.5f * kPi + p_.object_mask_margin_rad) {
         usable[k] = false;
       }
     }
   }
   ObjectFix fix;
-  if (!estimate_object(reflect, usable, p_.object_range_mm, &fix)) {
+  if (!estimate_object(reflect, usable, p_.object_range_mm, &fix, p_.object_min_signal)) {
     object_hits_ = 0;
     return;
   }
   ++object_hits_;
+  object_seen_us_ = now_us_;
+  // While I circle the object it is beside me, where the robot behind me spoils the
+  // receivers: its position then comes from dead reckoning alone.
+  if (lasso_active_) return;
+  if (lasso_facing_) {
+    // Facing it, only fixes from two receivers with the object nearly dead ahead count.
+    if (!fix.paired || std::fabs(fix.bearing_rad) > p_.lasso_fix_cone_rad) {
+      if (lasso_fixes_ > 0) return;
+    } else {
+      ++lasso_fixes_;
+    }
+  }
   const float range = fix.gap_mm + p_.base_radius_mm + p_.object_radius_mm;
   const float x = range * std::cos(fix.bearing_rad);
   const float y = range * std::sin(fix.bearing_rad);
   const float gain = object_hits_ > 1 ? p_.flash_filter_gain : 1.0f;
   object_x_mm_ += gain * (x - object_x_mm_);
   object_y_mm_ += gain * (y - object_y_mm_);
-  object_seen_us_ = now_us_;
 }
 
 bool Robot::object_known() const {
@@ -562,7 +579,9 @@ void Robot::announce(Hal& hal) {
 // Train behind the robot ahead. The tongue points at its hub, so the ring angle is the
 // bearing; the gap comes from the hall reading it reports. Both front sensors over the
 // edge stop the wheels; one alone does not, because the hub ahead stands on the table.
-void Robot::follow(Hal& hal) {
+// ring_target_rad: where the tongue should point in the base frame. Zero trails the robot
+// ahead like a trailer; half a turning angle keeps the robot on the circle its leader drives.
+void Robot::follow(Hal& hal, float ring_target_rad) {
   state_ = CATENA_STATE_FOLLOW;
   holding_ = false;
   goal_ = target_ = CATENA_NONE;
@@ -570,9 +589,10 @@ void Robot::follow(Hal& hal) {
   // No feed-forward backwards: there are no edge sensors at the rear.
   float v = std::fmax(chain_.ahead_speed_mm_s(), 0.0f) +
             p_.follow_gain_mm_s * (p_.follow_hall_target - chain_.ahead_hall());
-  v *= clampf(std::cos(ring_rad_), 0.0f, 1.0f);
+  const float off = wrap_pi(ring_rad_ - ring_target_rad);
+  v *= clampf(std::cos(off), 0.0f, 1.0f);
   if (!hal.table_left() && !hal.table_right() && v > 0.0f) v = 0.0f;
-  drive(hal, v, p_.follow_turn_gain_per_s * ring_rad_);
+  drive(hal, v, p_.follow_turn_gain_per_s * off);
 }
 
 // -- SHAPE and MOVE (spec 7.4, 7.5) ---------------------------------------------------------
@@ -701,13 +721,15 @@ void Robot::shape(Hal& hal, float dt_s) {
     return;
   }
   const bool in_lasso = (shape_flags_ & 4) != 0;
-  if (in_lasso && chain_.ahead() != CATENA_NONE &&
-      static_cast<float>(lasso_progress_) * p_.pitch_mm / 8.0f <
-          static_cast<float>(chain_.index()) * p_.pitch_mm) {
+  if (in_lasso && chain_.ahead() != CATENA_NONE) {
     // Spec 7.6: I take up my ring angle only once I have reached the circle the head is
     // drawing; until then I follow. Curling the whole chain at once would swing the tail
-    // through the object.
-    follow(hal);
+    // through the object. On the circle I still follow, with my tongue held at half the
+    // ring's turning angle: that keeps me on the circle of the robot ahead. The shape rule
+    // itself is too slow here; it made the robots drag on the head until it slipped.
+    const bool on_circle = static_cast<float>(lasso_progress_) * p_.pitch_mm / 8.0f >=
+                           static_cast<float>(chain_.index()) * p_.pitch_mm;
+    follow(hal, on_circle ? 0.5f * poly_.turn_rad[chain_.index()] : 0.0f);
     return;
   }
   e_self_ = 0.0f;
@@ -809,15 +831,14 @@ void Robot::shape(Hal& hal, float dt_s) {
   // neighbours wait: a made-up zero would send them all off against each other.
   const bool blind = f != CATENA_NONE && aft_id_ != CATENA_NONE && !has_aft;
   if (blind) e_self_ = kUnknown;
-  // In a lasso the robot behind me may still be following: I hold my angle without it.
-  const bool wait = blind || unknown(e_fore) || (unknown(e_aft) && !in_lasso);
+  const bool wait = blind || unknown(e_fore) || unknown(e_aft);
   const float g = p_.shape_gain_per_s * p_.pitch_mm;
   float vx = 0.0f, vy = 0.0f;
   if (f != CATENA_NONE && !wait) {
     vx -= g * (e_fore - e_self_) * -uy;
     vy -= g * (e_fore - e_self_) * ux;
   }
-  if (has_aft && !wait && !unknown(e_aft)) {
+  if (has_aft && !wait) {
     vx -= g * (e_aft - e_self_) * -wy;
     vy -= g * (e_aft - e_self_) * wx;
   }
@@ -919,13 +940,14 @@ void Robot::lead(Hal& hal, float dt_s) {
     set_shape(stroke_.xy, true, false, false);
     lasso_active_ = false;
   }
+  if (at_edge) lasso_facing_ = false;
   if (at_edge || phase_ == CATENA_WANDER_BACKOFF || phase_ == CATENA_WANDER_TURN) {
     state_ = CATENA_STATE_WANDER;  // edge avoidance overrides seeking and docking
     goal_ = CATENA_NONE;
     wander(hal, dt_s);
     return;
   }
-  if (lasso_active_) {
+  if (lasso_active_ || lasso_facing_) {
     lasso(hal, dt_s);
     return;
   }
@@ -960,7 +982,8 @@ void Robot::lead(Hal& hal, float dt_s) {
   }
   const Neighbour* goal = pick_goal();
   if (!goal && lasso_possible()) {
-    lasso_start();
+    lasso_facing_ = true;
+    lasso_fixes_ = 0;
     lasso(hal, dt_s);
     return;
   }
@@ -1005,22 +1028,45 @@ void Robot::lasso(Hal& hal, float dt_s) {
   state_ = CATENA_STATE_LASSO;
   holding_ = false;
   goal_ = target_ = CATENA_NONE;
-  e_self_ = 0.0f;  // I am an end of the shape: the robot behind me may hold its angle
   const float range = std::hypot(object_x_mm_, object_y_mm_);
   const float bearing = std::atan2(object_y_mm_, object_x_mm_);
-  const float off = (range - lasso_radius_mm_) / lasso_radius_mm_;
-  const float want = -0.5f * kPi + clampf(p_.lasso_radius_gain * off, -1.0f, 1.0f);
-  const float error = wrap_pi(bearing - want);
-  if (!lasso_on_circle_ && std::fabs(off) < 0.15f && std::fabs(error) < 0.5f) {
-    lasso_on_circle_ = true;
+  if (lasso_facing_) {
+    // First sight is often one receiver's, good to a lobe. Turn to face the object: dead
+    // ahead two receivers see it and give its place well enough to centre a ring on.
+    if (now_us_ - object_seen_us_ > to_us(p_.lasso_fix_timeout_s) || !towing()) {
+      lasso_facing_ = false;  // it was nothing, or it is gone
+      return;
+    }
+    drive(hal, 0.0f, clampf(p_.seek_turn_gain_per_s * bearing, -p_.wander_spin_rate_rad_s,
+                            p_.wander_spin_rate_rad_s));
+    if (static_cast<float>(lasso_fixes_) < p_.lasso_fix_count) return;
+    lasso_facing_ = false;
+    lasso_start();
   }
-  const float keep = lead_speed_mm_s() / p_.follow_lead_speed_mm_s;  // slack along the chain
-  const float forward = clampf(std::cos(error), 0.0f, 1.0f);
-  const float v = p_.lasso_speed_mm_s * keep * forward * forward;
-  if (lasso_on_circle_) lasso_driven_mm_ += v * dt_s;
+  e_self_ = 0.0f;  // I am an end of the shape: the robot behind me may hold its angle
+  // First turn in place until the object is square on my right. Then drive a circle of the
+  // ring's radius to the right at a fixed curvature, by gyro (spec 7.6). The object, seen
+  // from inside its detection range, lies well within that circle. No steering on where I
+  // believe the object to be: my wheels slip sideways under the chain's pull, and a centre
+  // carried along by dead reckoning walked off by 100 mm and more.
+  float v = 0.0f;
+  float w = 0.0f;
+  if (!lasso_on_circle_) {
+    const float error = wrap_pi(bearing + 0.5f * kPi);
+    w = clampf(p_.seek_turn_gain_per_s * error, -p_.wander_spin_rate_rad_s,
+               p_.wander_spin_rate_rad_s);
+    lasso_on_circle_ = std::fabs(error) < p_.dock_align_rad;
+  } else {
+    const float keep = lead_speed_mm_s() / p_.follow_lead_speed_mm_s;  // slack along the chain
+    v = p_.lasso_speed_mm_s * keep;
+    w = -v / lasso_radius_mm_;
+    // How far round I am is what the gyro says I have turned, whatever the wheels did.
+    lasso_driven_mm_ += lasso_radius_mm_ * std::fabs(last_turn_rad_);
+  }
   lasso_progress_ = static_cast<uint8_t>(clampf(lasso_driven_mm_ * 8.0f / p_.pitch_mm, 0.0f, 255.0f));
-  drive(hal, v, clampf(p_.seek_turn_gain_per_s * error, -p_.wander_spin_rate_rad_s,
-                       p_.wander_spin_rate_rad_s));
+  drive(hal, v, w);
+  (void)dt_s;
+  (void)range;
   // All but the last stretch drawn: from here it is a plain closed ring, and holding it
   // brings my tail in front of me to dock onto.
   if (lasso_driven_mm_ >= (static_cast<float>(chain_.size()) - 1.5f) * p_.pitch_mm) {
@@ -1260,14 +1306,25 @@ void Robot::start_backoff(bool void_left, bool void_right, bool reverse) {
   }
   turn_target_rad_ = rng_.uniform(p_.wander_turn_min_rad, p_.wander_turn_max_rad);
   turned_rad_ = 0.0f;
+  // The edge is ahead of me, or ahead and to the side whose sensor saw it.
+  edge_psi_rad_ = wrap_pi(psi_rad_ + (void_left == void_right ? 0.0f : void_left ? 0.5f : -0.5f));
+  edge_met_us_ = now_us_;
   if (towing()) {
     // Turn on until no robot close by is ahead: the one on my hub, or my own chain curled
-    // round me. Avoiding it after the turn would swing me straight back to the edge.
+    // round me. Avoiding it after the turn would swing me straight back to the edge. And
+    // not along the edge either: creeping along it, I met it again every second.
     turn_target_rad_ = p_.wander_turn_min_rad;
-    while (turn_target_rad_ < 1.5f * kPi && blocked(turn_dir_ * turn_target_rad_)) {
+    while (turn_target_rad_ < 1.5f * kPi &&
+           (blocked(turn_dir_ * turn_target_rad_) ||
+            std::fabs(wrap_pi(psi_rad_ + turn_dir_ * turn_target_rad_ - edge_psi_rad_)) <
+                p_.wander_edge_clear_rad)) {
       turn_target_rad_ += 0.1f;
     }
   }
+}
+
+bool Robot::edge_remembered() const {
+  return towing() && edge_met_us_ != 0 && now_us_ - edge_met_us_ < to_us(p_.wander_edge_memory_s);
 }
 
 // A robot within avoiding range would be ahead of me after turning by turn_rad.
@@ -1318,6 +1375,8 @@ void Robot::wander(Hal& hal, float dt_s) {
       const float span = p_.wander_avoid_range_mm - p_.wander_avoid_stop_range_mm;
       v = cruise * clampf((n->range_mm - p_.wander_avoid_stop_range_mm) / span, 0, 1);
       w = avoid_dir_ * p_.wander_spin_rate_rad_s;
+      // Fresh from an edge with a chain in tow: do not swing back toward it.
+      if (edge_remembered() && w * wrap_pi(edge_psi_rad_ - psi_rad_) > 0.0f) w = 0.0f;
     } else {
       phase_ = CATENA_WANDER_CRUISE;
       retarget_in_s_ -= dt_s;
@@ -1327,6 +1386,7 @@ void Robot::wander(Hal& hal, float dt_s) {
       }
       v = cruise;
       w = clampf(cruise_turn_rad_s_, -turn_limit, turn_limit);
+      if (edge_remembered() && w * wrap_pi(edge_psi_rad_ - psi_rad_) > 0.0f) w = 0.0f;
     }
   }
   drive(hal, v, w);

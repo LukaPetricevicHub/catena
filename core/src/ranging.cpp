@@ -37,7 +37,7 @@ bool estimate_flash(const float ir[CATENA_IR_COUNT], float reference_range_mm, F
 }
 
 bool estimate_object(const float reflect[CATENA_IR_COUNT], const bool usable[CATENA_IR_COUNT],
-                     float range_mm, ObjectFix* fix) {
+                     float range_mm, ObjectFix* fix, float min_signal) {
   int best = -1;
   for (int k = 0; k < CATENA_IR_COUNT; ++k) {
     if (usable[k] && (best < 0 || reflect[k] > reflect[best])) best = k;
@@ -58,11 +58,12 @@ bool estimate_object(const float reflect[CATENA_IR_COUNT], const bool usable[CAT
     if (offset > 0.5f * spacing) offset = 0.5f * spacing;
   }
   const float strength = reflect[best] / std::cos(offset);
-  if (strength < 1.0f) return false;
+  if (strength < min_signal) return false;
   float bearing = receiver_angle_rad(best) + static_cast<float>(side) * offset;
   if (bearing > kPi) bearing -= 2.0f * kPi;
   fix->bearing_rad = bearing;
   fix->gap_mm = range_mm / std::sqrt(strength);
+  fix->paired = side != 0;
   return true;
 }
 
