@@ -360,15 +360,35 @@ void Robot::sense_object(const float* reflect) {
   // While I circle the object it is beside me, where the robot behind me spoils the
   // receivers: its position then comes from dead reckoning alone.
   if (lasso_active_) return;
+  const float range = fix.gap_mm + p_.base_radius_mm + p_.object_radius_mm;
   if (lasso_facing_) {
-    // Facing it, only fixes from two receivers with the object nearly dead ahead count.
-    if (!fix.paired || std::fabs(fix.bearing_rad) > p_.lasso_fix_cone_rad) {
+    // Standing still to fix the object: only fixes from two receivers count, and the
+    // median of several, since a neighbour's reflection now and then bends one. I only
+    // turn meanwhile, so the object keeps its direction as a gyro heading.
+    if (!fix.paired) {
       if (lasso_fixes_ > 0) return;
     } else {
+      const int slot = lasso_fixes_ % 8;
+      fix_psi_rad_[slot] = wrap_pi(psi_rad_ + fix.bearing_rad);
+      fix_range_mm_[slot] = range;
       ++lasso_fixes_;
+      last_fix_us_ = now_us_;
+      const int n = lasso_fixes_ < 8 ? lasso_fixes_ : 8;
+      float off[8], rng[8];
+      for (int i = 0; i < n; ++i) {
+        off[i] = wrap_pi(fix_psi_rad_[i] - fix_psi_rad_[0]);
+        rng[i] = fix_range_mm_[i];
+      }
+      for (int i = 1; i < n; ++i) {  // insertion sort, both lists
+        for (int j = i; j > 0 && off[j] < off[j - 1]; --j) { const float t = off[j]; off[j] = off[j - 1]; off[j - 1] = t; }
+        for (int j = i; j > 0 && rng[j] < rng[j - 1]; --j) { const float t = rng[j]; rng[j] = rng[j - 1]; rng[j - 1] = t; }
+      }
+      const float bearing = wrap_pi(fix_psi_rad_[0] + off[n / 2] - psi_rad_);
+      object_x_mm_ = rng[n / 2] * std::cos(bearing);
+      object_y_mm_ = rng[n / 2] * std::sin(bearing);
+      return;
     }
   }
-  const float range = fix.gap_mm + p_.base_radius_mm + p_.object_radius_mm;
   const float x = range * std::cos(fix.bearing_rad);
   const float y = range * std::sin(fix.bearing_rad);
   const float gain = object_hits_ > 1 ? p_.flash_filter_gain : 1.0f;
@@ -729,7 +749,9 @@ void Robot::shape(Hal& hal, float dt_s) {
     // itself is too slow here; it made the robots drag on the head until it slipped.
     const bool on_circle = static_cast<float>(lasso_progress_) * p_.pitch_mm / 8.0f >=
                            static_cast<float>(chain_.index()) * p_.pitch_mm;
-    follow(hal, on_circle ? 0.5f * poly_.turn_rad[chain_.index()] : 0.0f);
+    // The chord to the robot ahead lies half a turning angle inside my tangent; the ring
+    // is drawn counter-clockwise and driven clockwise, hence the minus.
+    follow(hal, on_circle ? -0.5f * poly_.turn_rad[chain_.index()] : 0.0f);
     return;
   }
   e_self_ = 0.0f;
@@ -984,6 +1006,7 @@ void Robot::lead(Hal& hal, float dt_s) {
   if (!goal && lasso_possible()) {
     lasso_facing_ = true;
     lasso_fixes_ = 0;
+    lasso_facing_us_ = last_fix_us_ = now_us_;
     lasso(hal, dt_s);
     return;
   }
@@ -1037,8 +1060,15 @@ void Robot::lasso(Hal& hal, float dt_s) {
       lasso_facing_ = false;  // it was nothing, or it is gone
       return;
     }
-    drive(hal, 0.0f, clampf(p_.seek_turn_gain_per_s * bearing, -p_.wander_spin_rate_rad_s,
-                            p_.wander_spin_rate_rad_s));
+    float w = clampf(p_.seek_turn_gain_per_s * bearing, -p_.wander_spin_rate_rad_s,
+                     p_.wander_spin_rate_rad_s);
+    if (now_us_ - last_fix_us_ > to_us(1.0f / p_.tick_hz * 50.0f)) {
+      // Only one receiver sees it (the others face neighbours): turn slowly to and fro
+      // until two do.
+      const float phase = static_cast<float>(now_us_ - lasso_facing_us_) * 1e-6f / p_.lasso_sweep_period_s;
+      w = (static_cast<int>(phase) % 2 == 0 ? 1.0f : -1.0f) * p_.lasso_sweep_rate_rad_s;
+    }
+    drive(hal, 0.0f, w);
     if (static_cast<float>(lasso_fixes_) < p_.lasso_fix_count) return;
     lasso_facing_ = false;
     lasso_start();

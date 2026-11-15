@@ -146,8 +146,9 @@ behaviour:
     twist_max_rate: 20.0      # deg/s, rotate slider at full deflection
   lasso:                      # spec 7.6; values assumed, tuned in simulation
     speed: 30.0               # mm/s of the head while it circles the object
-    fix_cone: 20.0            # deg; the object must be this nearly dead ahead for a fix of its position
-    fix_count: 3              # such fixes before the head announces the ring
+    fix_count: 5              # two-receiver fixes of the object before the head announces the ring; it uses their median
+    sweep_rate: 25.0          # deg/s; the head turns to and fro while only one receiver sees the object
+    sweep_period: 3.0         # s per direction of that sweep
     fix_timeout: 2.0          # s without a reflection after which the head gives the object up
     min_robots: 8             # a shorter chain does not try to close a ring round an object
   recover:                    # spec 7.8; values assumed, tuned in simulation

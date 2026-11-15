@@ -182,6 +182,10 @@ class Robot {
   bool lasso_active_ = false;     // I am the head and circling an object
   bool lasso_facing_ = false;     // ... or turning to face one for a fix, before the ring is announced
   int lasso_fixes_ = 0;
+  float fix_psi_rad_[8] = {};     // fixes of the object: direction as a gyro heading, and range
+  float fix_range_mm_[8] = {};
+  uint64_t lasso_facing_us_ = 0;
+  uint64_t last_fix_us_ = 0;
   uint8_t lasso_version_ = 0;     // the shape version I announced for it
   float lasso_radius_mm_ = 0.0f;
   float lasso_driven_mm_ = 0.0f;  // along the circle
