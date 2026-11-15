@@ -69,7 +69,8 @@ sensing:
   object_confirm: 3           # reflections in a row before an object counts
   object_range: 110.0         # gap at which a 40 mm white ball is still detected; assumed, measure it
   edge_sensors: 2             # downward, front-left and front-right
-  edge_sensor_xy: [30.0, 15.0]  # spot of the left sensor in the base frame; right is mirrored; assumed
+  edge_sensor_xy: [30.0, 15.0]  # spot of the left sensor in the base frame; right is mirrored; assumed. No sensor body
+                                # fits there: the CAD window is at cad.edge_window_xy (D49, open question in STATUS.md)
   gyro_drift_deg_per_min: 2.0
   ring_angle_sensor: AS5600   # absolute angle of the ring relative to the base
   ring_angle_sigma_deg: 0.1   # assumed
@@ -184,3 +185,67 @@ sim:                          # 2D simulator model, not robot hardware
   ball_rolling_decel: 80.0    # mm/s^2; a table-tennis ball rolling on a table top slows by about this
   ball_elasticity: 0.3        # bounce of the ball off a robot base
   start_spacing: 110.0        # mm; random starts keep centres at least this far apart
+
+cad:                          # printed parts (spec 11): typical or datasheet sizes, nothing here is measured (D50)
+  print:
+    bed: [180.0, 180.0]
+    min_wall: 1.2
+    max_overhang: 50.0        # deg from the vertical
+    max_bridge: 10.0          # mm; longest flat ceiling printed without support
+    density: {PETG: 1.27, PLA: 1.24, TPU: 1.21}   # g/cm^3, for the mass estimate
+  shell: {wall: 1.6, floor: 2.0, lid: 2.0}
+  fit:
+    turning: 0.3              # diametral clearance of a journal in its bore
+    static: 0.2               # diametral clearance of parts pushed together by hand
+    side: 0.1                 # per side, a part dropped into a slot
+  nose: {height: 3.0}         # the base is chamfered front and rear from its floor up by this much (sloped nose, spec 3)
+  motor:                      # N20 gearmotor, typical sizes
+    section: [12.0, 10.0]     # across, tall
+    length: 24.0              # gearbox plus can
+    terminals: 1.5            # behind the can
+    shaft: {diameter: 3.0, flat: 2.5, length: 10.0}
+  wheel:
+    well_clearance: 1.0       # radial, wheel to chassis
+    side_clearance: 0.4       # wheel face to chassis
+    tyre_thickness: 1.5       # tyre outside the hub flanges
+    groove_depth: 1.2         # V groove that seats a 24 x 3 O-ring or the printed tyre
+    groove_floor: 1.2
+    stripe_depth: 0.4
+    stripe_radii: [7.0, 12.0]
+  screw:
+    m2: {pilot: 1.7, clear: 2.3, head: 3.8}
+    m3: {pilot: 2.5, clear: 3.4, head: 6.0}
+  pillar: {x: 31.6, diameter: 4.4}     # lid screw pillars, front and rear on the centre line
+  carrier: {thickness: 1.6, post_diameter: 4.0, post_y: 20.0, slot: [5.0, 12.0], slot_x: 14.0}
+  ir:
+    hole: 3.2                 # 3 mm LED or phototransistor
+    height: 25.0              # hole axis above the table
+    pair_spacing: 5.2         # the four pairs beside the wheels
+    axis_pair_spacing: 10.0   # front and rear pair; a screw pillar stands between the two holes
+    wheel_side_shift: 3.9     # those four pairs sit this far off their 60 deg line, away from the wheel
+  reflective_sensor: {body: [10.2, 5.8], clearance: 0.2}   # TCRT5000 datasheet
+  tick_sensor_x: 11.0
+  edge_window_xy: [27.0, 13.5]   # the farthest out a 10.2 x 5.8 mm edge sensor fits inside the wall; the simulator
+                                 # still senses at sensing.edge_sensor_xy (D49)
+  skid: {width: 4.0, clearance: 0.3, foot: [18.5, 27.5], back: 17.0, tab: [20.0, 23.0]}
+  bearing:
+    journal_diameter: 10.0
+    spigot_diameter: 8.0
+    spigot_flat: 3.5          # flat on the spigot, from the axis; keeps the angle magnet from slipping
+    flange_diameter: 16.0
+    flange_thickness: 1.5
+    axial_play: 0.2
+    land_diameter: 26.0       # thrust land on the lid that the ring rides on
+    angle_magnet: [6.0, 2.5]  # diametric disc for the AS5600
+  hub_washer: {bore: 15.0, thickness: 2.5, count: 2}   # DIN 125 M14
+  ring:
+    core_clearance: 0.2       # diametral, hub core in the washers
+    sector_clearance: 0.5     # solid front sector to a neighbour's tongue at the yaw limit
+    hub_clearance: 0.5        # solid front sector to the steel hub
+    screw_xy: [28.0, 14.0]    # M2 that holds the upper plate on the front sector; mirrored
+  tongue: {magnet_wall: 1.6}  # plastic between tip magnet and hub; coupon-tested
+  detent: {magnet: [3.0, 2.0], radius: 24.0, gap: 3.0}
+  coupon:
+    groove_heights: [5.3, 5.4, 5.6]
+    magnet_walls: [1.2, 1.6, 2.0]
+    shaft_fits: [-0.1, 0.0, 0.1]      # added to shaft diameter and flat

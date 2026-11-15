@@ -26,9 +26,7 @@ class Listed:
     lo: tuple[float, float, float]
     hi: tuple[float, float, float]
     why: str
-
-    def span_mm(self) -> float:
-        return min(self.hi[0] - self.lo[0], self.hi[1] - self.lo[1])
+    span_mm: float = 0.0  # a bridge states how far it spans
 
 
 @dataclass(frozen=True)
@@ -55,10 +53,16 @@ def _normals_areas(v: np.ndarray, t: np.ndarray) -> tuple[np.ndarray, np.ndarray
     return cross / np.maximum(length, 1e-12)[:, None], 0.5 * length
 
 
+def extent(shape: cq.Shape) -> tuple[np.ndarray, np.ndarray]:
+    """Lowest and highest x, y, z of the shape, from its mesh (OCC's boxes carry a margin)."""
+    v, _ = mesh(shape)
+    return v.min(axis=0), v.max(axis=0)
+
+
 def bed_overflow_mm(shape: cq.Shape, bed_mm: tuple[float, float]) -> float:
     """How far the part's footprint exceeds the bed; 0 or less means it fits."""
-    bb = shape.BoundingBox()
-    return max(bb.xlen - bed_mm[0], bb.ylen - bed_mm[1])
+    lo, hi = extent(shape)
+    return float(max(hi[0] - lo[0] - bed_mm[0], hi[1] - lo[1] - bed_mm[1]))
 
 
 def unlisted_overhang(

@@ -20,6 +20,10 @@ jobs:
         with:
           python-version: "3.12"
       # PYTHON=python: use the interpreter setup-python installed, not a system python3.x.
+      # cadquery pulls in VTK, which needs these two libraries on a bare Linux runner.
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgl1 libxrender1
       - run: make setup PYTHON=python
+      - run: make cad
       - run: make test
       - run: make lint

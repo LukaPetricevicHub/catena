@@ -341,3 +341,58 @@ quarters of the circle, or the circle takes twice as long as it should, it gives
 and turns away: forcing the ring made the chain unfold across the table and a tail fell.
 `make test` asks 60% of its 10 lasso and 12 heal seeds, `make test-full` the 80% of 50 that
 M4 asks: on CI the same ten seeds gave 7 on Ubuntu where macOS had 9.
+
+## D49 The edge sensor windows are at (27, 13.5); the simulator keeps (30, 15) for now (15 Nov 2026)
+
+A 10.2 x 5.8 mm reflective sensor does not fit at the simulated spot (30, 15): its outer
+corners would lie in the base wall. `cad.edge_window_xy` (27, 13.5) is the farthest out it
+fits. Simulated there, the lasso drops from 45 to 40 of 50 seeds (6 of the first 10); at
+(24.5, 12.25) to 39. Which sensor and spot to build is a hardware choice, so the simulator
+is unchanged and the question is open in `STATUS.md`.
+
+## D50 CAD numbers live under `cad:` in the config and are typical sizes (15 Nov 2026)
+
+Walls, fits, screw holes, motor and sensor sizes are datasheet or typical values; no part
+has been measured. The checks measure on a 0.02 mm triangle mesh of each part in its print
+orientation. A wall is two faces that look at each other; a sharp edge is not a wall.
+Would change it: any measured part.
+
+## D51 Overhangs are excused only by a box listed with the part (15 Nov 2026)
+
+Spec 11 allows overhangs with a listed support. Each part carries its list: supports, and
+bridges with their span (at most `cad.print.max_bridge`, 10 mm). The check does not prove
+that a listed bridge has a wall at both ends; the list is short and printed by `make cad`.
+
+## D52 The tongue prints on a listed support (15 Nov 2026)
+
+The tongue lies in the middle of the groove, 0.2 mm above the lower plate, so outside the
+plate its underside hangs 3.2 mm over the bed whichever way the ring is split. Flat layers
+matter more for a part loaded in bending than a clean underside. Would change it: a coupon
+that shows the supported underside binds in the groove.
+
+## D53 The ring is held by a pin from below, which also carries the angle magnet (15 Nov 2026)
+
+The bearing retainer is a pin: flange under the lid, journal in the lid's bore, spigot up
+through the ring, one M3 screw from the top. The lower ring keeps a flat underside for
+printing, and the AS5600 magnet turns with the ring on the axis, above the board carrier.
+Open: a steel screw 2 mm above that magnet may disturb the sensor; nylon is the fallback.
+
+## D54 Sloped nose: chamfers front and rear, and two printed skids (15 Nov 2026)
+
+The base is cut by a plane 43 degrees from the floor, front and rear, 3 mm high: printable
+without support and the first thing to meet a table edge when the robot arrives straight.
+Skids are separate parts printed on their side (a skid under the floor cannot be printed
+with it); `skid` is one part more than spec 11 lists.
+
+## D55 Infrared pairs beside the wheels sit 3.9 mm off their 60 degree lines (15 Nov 2026)
+
+On the lines the holes break into the wheel wells. The four pairs beside the wheels are
+moved away from the wheel; the holes stay parallel to 60, 120, 240 and 300 degrees, so the
+receivers look where the simulator assumes. The front and rear pairs stand 10 mm apart
+with a lid screw pillar between them.
+
+## D56 `make setup` installs cadquery; CI runs `make cad` (15 Nov 2026)
+
+Replaces the last sentence of D16. The CAD tests are part of `make test`, so cadquery must
+be present wherever tests run; a skipped test would read as a passing one.
+

@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import math
 
+import cadquery as cq
 import numpy as np
 import pytest
 
-cq = pytest.importorskip("cadquery")
-
-from cad import checks  # noqa: E402
-from cad.checks import Listed  # noqa: E402
+from cad import checks
+from cad.checks import Listed
 
 
 def box(x: float, y: float, z: float, at=(0.0, 0.0, 0.0)):

@@ -15,7 +15,7 @@ PYTHON ?= $(shell for p in python3.13 python3.12 python3.11 python3; do \
 S ?= wander
 SEED ?= 1
 
-.PHONY: help setup core test test-full lint sim cad fw clips
+.PHONY: help setup core test test-full lint sim cad render fw clips
 
 help:
 	@echo "make setup        create .venv, install Python deps, build core"
@@ -24,7 +24,8 @@ help:
 	@echo "make test-full    all scenarios across the full seed sets"
 	@echo "make lint         ruff check on the Python code"
 	@echo "make sim S=wander run a scenario with the viewer (SEED=n, ARGS='--speed 4')"
-	@echo "make cad          build all parts, run checks, export STEP/STL/3MF (from M5)"
+	@echo "make cad          build all parts, run checks, export STEP/STL/3MF to cad/out/"
+	@echo "make render       draw docs/media/cad_robot.png and cad_linked.png (needs a display or macOS)"
 	@echo "make fw           build the firmware with PlatformIO, no upload (from M7)"
 	@echo "make clips        render README clips from scenarios (from M4)"
 
@@ -35,7 +36,7 @@ $(STAMP): pyproject.toml
 	  echo "error: Python 3.11+ not found on PATH (macOS: brew install python@3.12)"; exit 1; }
 	$(PYTHON) -m venv $(VENV)
 	$(PY) -m pip install --quiet --upgrade pip
-	$(PY) -m pip install --quiet -e ".[dev]"
+	$(PY) -m pip install --quiet -e ".[dev,cad]"
 	@touch $(STAMP)
 
 core: $(STAMP)
@@ -56,8 +57,11 @@ lint: $(STAMP)
 sim: core
 	$(PY) -m sim.runner $(S) --seed $(SEED) --viewer $(ARGS)
 
-cad:
-	@echo "make cad: CAD arrives in milestone M5"; exit 1
+cad: $(STAMP)
+	$(PY) -m cad.build
+
+render: $(STAMP)
+	$(PY) -m cad.render
 
 fw:
 	@echo "make fw: the firmware project arrives in milestone M7"; exit 1
