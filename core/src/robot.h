@@ -181,15 +181,18 @@ class Robot {
   // Lasso (spec 7.6).
   bool lasso_active_ = false;     // I am the head and circling an object
   bool lasso_facing_ = false;     // ... or turning to face one for a fix, before the ring is announced
-  int lasso_fixes_ = 0;
-  float fix_psi_rad_[8] = {};     // fixes of the object: direction as a gyro heading, and range
-  float fix_range_mm_[8] = {};
-  uint64_t lasso_facing_us_ = 0;
-  uint64_t last_fix_us_ = 0;
+  int lasso_stage_ = 0;           // 0 turning to face it, 1 to 3 the three legs of the scan
+  float scan_from_rad_ = 0.0f;    // gyro heading at the middle of the scan
+  static constexpr int kScanMax = 48;
+  float scan_psi_rad_[kScanMax] = {};  // front receiver readings against heading, off the middle
+  float scan_read_[kScanMax] = {};
+  int scan_count_ = 0;
+  uint64_t lasso_blocked_until_us_ = 0;  // after giving an object up
   uint8_t lasso_version_ = 0;     // the shape version I announced for it
   float lasso_radius_mm_ = 0.0f;
   float lasso_driven_mm_ = 0.0f;  // along the circle
   bool lasso_on_circle_ = false;
+  uint64_t lasso_circle_us_ = 0;  // when the circle was begun
   uint8_t lasso_progress_ = 0;    // the head's progress as heard, eighths of a pitch
   uint64_t orphan_tail_until_us_ = 0;
   uint64_t orphan_tail_limit_us_ = 0;

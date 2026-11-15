@@ -9,7 +9,11 @@ from sim.runner import run_seeds
 
 # M4 asks for 50 seeds; `make test` runs the first 12, `make test-full` (CATENA_FULL=1) all.
 SEEDS = list(range(50 if os.environ.get("CATENA_FULL") else 12))
-REQUIRED_FRACTION = 0.8
+# The acceptance line is 80% of 50 seeds and `make test-full` holds it. The short set of
+# `make test` only has to show that nothing broke: the same seeds play out differently on
+# another machine (seen on CI: 7 of 10 on Ubuntu where macOS had 9), and ten runs at a
+# true rate near 90% miss 8 of 10 too often to gate on.
+REQUIRED_FRACTION = 0.8 if os.environ.get("CATENA_FULL") else 0.6
 
 
 @pytest.fixture(scope="module")

@@ -310,13 +310,14 @@ within 115 deg of any neighbour seen in the last 2 s are left out. Robots too fa
 known by their flash still reflect about 0.5 each and two or three add up, so the threshold
 is 2.0 (a ball within about 134 mm, centre to centre) instead of 1.0 at `object_range`.
 
-## D45 The lasso circle is driven at fixed curvature by gyro, from a fix taken standing still (15 Nov 2026)
+## D45 The lasso circle is driven at fixed curvature by gyro, from a scan taken standing still (15 Nov 2026)
 
-The head stops, sweeps its base until two receivers see the object, and takes the median of
-five fixes. It turns the object square onto its right and drives a circle of the ring's
-radius clockwise at fixed curvature; progress is the angle turned by gyro. Steering on a
-dead-reckoned centre was tried first: the wheels slip sideways under the chain's pull and
-the centre walked off by 100 mm and more, which dragged robots over the table edge.
+The head stops, faces the object and sweeps its base 60 deg either way: the heading at which
+the front receiver reads most is where the object lies, the reading there how far. Only the
+front receiver is needed; pairs of receivers were tried and often had one facing the chain.
+Then it turns the object square onto its right and drives a circle of the ring's radius at
+fixed curvature; progress is the angle turned by gyro. Steering on a dead-reckoned centre
+failed: the wheels slip sideways under the chain and the centre walked off by 100 mm and more.
 
 ## D46 Robots on the lasso circle follow with the tongue at half the ring angle (15 Nov 2026)
 
@@ -332,3 +333,11 @@ It spent up to 85% of its time turning at an edge it crept along, and never foun
 After an edge turn its heading keeps `wander.edge_clear` (80 deg) from where the edge was
 and it does not steer back toward it for `wander.edge_memory` (6 s). M2 forms faster with
 it (median 72 s, was 86 s). The lasso search is still a random walk; 360 s are allowed for it.
+
+## D48 Lasso: no ring is forced; short test sets only have to show nothing broke (15 Nov 2026)
+
+If the scan finds nothing, the head turns away. If it meets its own tail before three
+quarters of the circle, or the circle takes twice as long as it should, it gives the ring up
+and turns away: forcing the ring made the chain unfold across the table and a tail fell.
+`make test` asks 60% of its 10 lasso and 12 heal seeds, `make test-full` the 80% of 50 that
+M4 asks: on CI the same ten seeds gave 7 on Ubuntu where macOS had 9.

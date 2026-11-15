@@ -51,8 +51,13 @@ bool estimate_object(const float reflect[CATENA_IR_COUNT], const bool usable[CAT
   // Cosine lobes one spacing apart: r_best = A cos(d), r_side = A cos(spacing - d).
   const float spacing = 2.0f * kPi / CATENA_IR_COUNT;
   float offset = 0.0f;
+  // The pair only fixes an object that lies between the two receivers. If the weaker one
+  // sees less than its share and the receiver on the other side is masked, the object may
+  // lie over there, in front of the mask: then this is one receiver's word, no more.
+  bool between = false;
   if (side != 0) {
     const float ratio = reflect[side > 0 ? left : right] / reflect[best];
+    between = ratio > std::cos(spacing) + 0.05f || (usable[left] && usable[right]);
     offset = std::atan2(ratio - std::cos(spacing), std::sin(spacing));
     if (offset < 0.0f) offset = 0.0f;
     if (offset > 0.5f * spacing) offset = 0.5f * spacing;
@@ -63,7 +68,7 @@ bool estimate_object(const float reflect[CATENA_IR_COUNT], const bool usable[CAT
   if (bearing > kPi) bearing -= 2.0f * kPi;
   fix->bearing_rad = bearing;
   fix->gap_mm = range_mm / std::sqrt(strength);
-  fix->paired = side != 0;
+  fix->paired = between;
   return true;
 }
 

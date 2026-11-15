@@ -350,6 +350,12 @@ void Robot::sense_object(const float* reflect) {
       }
     }
   }
+  if (lasso_facing_ && lasso_stage_ > 0 && usable[0] && scan_count_ < kScanMax) {
+    // The scan: what the front receiver reads at each heading as the base sweeps past.
+    scan_psi_rad_[scan_count_] = wrap_pi(psi_rad_ - scan_from_rad_);
+    scan_read_[scan_count_] = reflect[0];
+    ++scan_count_;
+  }
   ObjectFix fix;
   if (!estimate_object(reflect, usable, p_.object_range_mm, &fix, p_.object_min_signal)) {
     object_hits_ = 0;
@@ -361,34 +367,7 @@ void Robot::sense_object(const float* reflect) {
   // receivers: its position then comes from dead reckoning alone.
   if (lasso_active_) return;
   const float range = fix.gap_mm + p_.base_radius_mm + p_.object_radius_mm;
-  if (lasso_facing_) {
-    // Standing still to fix the object: only fixes from two receivers count, and the
-    // median of several, since a neighbour's reflection now and then bends one. I only
-    // turn meanwhile, so the object keeps its direction as a gyro heading.
-    if (!fix.paired) {
-      if (lasso_fixes_ > 0) return;
-    } else {
-      const int slot = lasso_fixes_ % 8;
-      fix_psi_rad_[slot] = wrap_pi(psi_rad_ + fix.bearing_rad);
-      fix_range_mm_[slot] = range;
-      ++lasso_fixes_;
-      last_fix_us_ = now_us_;
-      const int n = lasso_fixes_ < 8 ? lasso_fixes_ : 8;
-      float off[8], rng[8];
-      for (int i = 0; i < n; ++i) {
-        off[i] = wrap_pi(fix_psi_rad_[i] - fix_psi_rad_[0]);
-        rng[i] = fix_range_mm_[i];
-      }
-      for (int i = 1; i < n; ++i) {  // insertion sort, both lists
-        for (int j = i; j > 0 && off[j] < off[j - 1]; --j) { const float t = off[j]; off[j] = off[j - 1]; off[j - 1] = t; }
-        for (int j = i; j > 0 && rng[j] < rng[j - 1]; --j) { const float t = rng[j]; rng[j] = rng[j - 1]; rng[j - 1] = t; }
-      }
-      const float bearing = wrap_pi(fix_psi_rad_[0] + off[n / 2] - psi_rad_);
-      object_x_mm_ = rng[n / 2] * std::cos(bearing);
-      object_y_mm_ = rng[n / 2] * std::sin(bearing);
-      return;
-    }
-  }
+  if (lasso_facing_ && lasso_stage_ > 0) return;  // scanning: the scan decides where it is
   const float x = range * std::cos(fix.bearing_rad);
   const float y = range * std::sin(fix.bearing_rad);
   const float gain = object_hits_ > 1 ? p_.flash_filter_gain : 1.0f;
@@ -1005,8 +984,7 @@ void Robot::lead(Hal& hal, float dt_s) {
   const Neighbour* goal = pick_goal();
   if (!goal && lasso_possible()) {
     lasso_facing_ = true;
-    lasso_fixes_ = 0;
-    lasso_facing_us_ = last_fix_us_ = now_us_;
+    lasso_stage_ = 0;
     lasso(hal, dt_s);
     return;
   }
@@ -1024,7 +1002,8 @@ void Robot::lead(Hal& hal, float dt_s) {
 // A wandering head with a long enough chain, no shape to hold, and an object in sight.
 bool Robot::lasso_possible() const {
   return towing() && static_cast<float>(chain_.size()) >= p_.lasso_min_robots &&
-         !(shape_version_ != 0 && (shape_flags_ & 2)) && object_known();
+         !(shape_version_ != 0 && (shape_flags_ & 2)) && object_known() &&
+         now_us_ >= lasso_blocked_until_us_;
 }
 
 // Announce a ring for my chain, to be taken up robot by robot as I draw the circle.
@@ -1054,24 +1033,56 @@ void Robot::lasso(Hal& hal, float dt_s) {
   const float range = std::hypot(object_x_mm_, object_y_mm_);
   const float bearing = std::atan2(object_y_mm_, object_x_mm_);
   if (lasso_facing_) {
-    // First sight is often one receiver's, good to a lobe. Turn to face the object: dead
-    // ahead two receivers see it and give its place well enough to centre a ring on.
-    if (now_us_ - object_seen_us_ > to_us(p_.lasso_fix_timeout_s) || !towing()) {
-      lasso_facing_ = false;  // it was nothing, or it is gone
+    // First sight is often one receiver's, good to a lobe, and the receivers beside it may
+    // face my own chain. So I stand, turn to face where I think it is, and sweep my base
+    // across it: the heading at which the front receiver reads most is where it lies, and
+    // how much it reads there says how far. Only the front receiver is needed.
+    if (!towing()) {
+      lasso_facing_ = false;
       return;
     }
-    float w = clampf(p_.seek_turn_gain_per_s * bearing, -p_.wander_spin_rate_rad_s,
-                     p_.wander_spin_rate_rad_s);
-    if (now_us_ - last_fix_us_ > to_us(1.0f / p_.tick_hz * 50.0f)) {
-      // Only one receiver sees it (the others face neighbours): turn slowly to and fro
-      // until two do.
-      const float phase = static_cast<float>(now_us_ - lasso_facing_us_) * 1e-6f / p_.lasso_sweep_period_s;
-      w = (static_cast<int>(phase) % 2 == 0 ? 1.0f : -1.0f) * p_.lasso_sweep_rate_rad_s;
+    float w = 0.0f;
+    if (lasso_stage_ == 0) {
+      w = clampf(p_.seek_turn_gain_per_s * bearing, -p_.wander_spin_rate_rad_s,
+                 p_.wander_spin_rate_rad_s);
+      if (std::fabs(bearing) < p_.dock_align_rad) {
+        lasso_stage_ = 1;
+        scan_from_rad_ = psi_rad_;
+        scan_count_ = 0;
+      }
+    } else {
+      const float off = wrap_pi(psi_rad_ - scan_from_rad_);
+      if (lasso_stage_ == 1 && off >= p_.lasso_scan_half_rad) lasso_stage_ = 2;       // out left
+      else if (lasso_stage_ == 2 && off <= -p_.lasso_scan_half_rad) lasso_stage_ = 3; // across
+      w = lasso_stage_ == 2 ? -p_.lasso_scan_rate_rad_s : p_.lasso_scan_rate_rad_s;
+      if (lasso_stage_ == 3 && off >= 0.0f) {                                          // and back
+        float peak = 0.0f;
+        for (int k = 0; k < scan_count_; ++k) peak = std::fmax(peak, scan_read_[k]);
+        float sum = 0.0f, at = 0.0f;
+        for (int k = 0; k < scan_count_; ++k) {
+          if (scan_read_[k] < p_.lasso_scan_share * peak) continue;
+          sum += scan_read_[k] * scan_read_[k];
+          at += scan_read_[k] * scan_read_[k] * scan_psi_rad_[k];
+        }
+        lasso_facing_ = false;
+        if (peak < p_.object_min_signal || sum <= 0.0f) {
+          // Nothing there after all. Turn away rather than drive on into whatever it was.
+          object_hits_ = 0;
+          lasso_blocked_until_us_ = now_us_ + to_us(p_.seek_memory_s);
+          start_backoff(false, false, false);
+          return;
+        }
+        const float there = wrap_pi(scan_from_rad_ + at / sum - psi_rad_);
+        const float far = p_.object_range_mm / std::sqrt(peak) + p_.base_radius_mm +
+                          p_.object_radius_mm;
+        object_x_mm_ = far * std::cos(there);
+        object_y_mm_ = far * std::sin(there);
+        lasso_start();
+        return;
+      }
     }
     drive(hal, 0.0f, w);
-    if (static_cast<float>(lasso_fixes_) < p_.lasso_fix_count) return;
-    lasso_facing_ = false;
-    lasso_start();
+    return;
   }
   e_self_ = 0.0f;  // I am an end of the shape: the robot behind me may hold its angle
   // First turn in place until the object is square on my right. Then drive a circle of the
@@ -1086,6 +1097,7 @@ void Robot::lasso(Hal& hal, float dt_s) {
     w = clampf(p_.seek_turn_gain_per_s * error, -p_.wander_spin_rate_rad_s,
                p_.wander_spin_rate_rad_s);
     lasso_on_circle_ = std::fabs(error) < p_.dock_align_rad;
+    lasso_circle_us_ = now_us_;
   } else {
     const float keep = lead_speed_mm_s() / p_.follow_lead_speed_mm_s;  // slack along the chain
     v = p_.lasso_speed_mm_s * keep;
@@ -1097,9 +1109,29 @@ void Robot::lasso(Hal& hal, float dt_s) {
   drive(hal, v, w);
   (void)dt_s;
   (void)range;
+  // If my own tail is already in front of me (the chain lay curled across the circle), or
+  // the circle takes far longer than it should (I am blocked), the chain is not round the
+  // object. Holding a ring now would make it unfold right across the table: a tail swung
+  // over the edge that way. Give the ring up, turn away and try again later.
+  const Neighbour* tail = lasso_on_circle_ ? own_tail() : nullptr;
+  const float expected_s = 2.0f * kPi * lasso_radius_mm_ / p_.lasso_speed_mm_s;
+  const float full_mm = (static_cast<float>(chain_.size()) - 1.5f) * p_.pitch_mm;
+  const bool met_tail = tail && lasso_driven_mm_ < 0.75f * full_mm &&
+                        range_of(*tail) < p_.shape_close_range_mm &&
+                        std::fabs(bearing_of(*tail)) < p_.wander_avoid_half_angle_rad;
+  const bool overdue = lasso_on_circle_ &&
+                       now_us_ - lasso_circle_us_ > to_us(p_.lasso_circle_limit * expected_s);
+  if (met_tail || overdue) {
+    set_shape(stroke_.xy, true, false, false);
+    lasso_active_ = false;
+    object_hits_ = 0;
+    lasso_blocked_until_us_ = now_us_ + to_us(p_.wander_edge_memory_s);
+    start_backoff(false, false, false);
+    return;
+  }
   // All but the last stretch drawn: from here it is a plain closed ring, and holding it
   // brings my tail in front of me to dock onto.
-  if (lasso_driven_mm_ >= (static_cast<float>(chain_.size()) - 1.5f) * p_.pitch_mm) {
+  if (lasso_driven_mm_ >= full_mm) {
     set_shape(stroke_.xy, true, true, false);
     lasso_active_ = false;
   }
@@ -1405,8 +1437,11 @@ void Robot::wander(Hal& hal, float dt_s) {
       const float span = p_.wander_avoid_range_mm - p_.wander_avoid_stop_range_mm;
       v = cruise * clampf((n->range_mm - p_.wander_avoid_stop_range_mm) / span, 0, 1);
       w = avoid_dir_ * p_.wander_spin_rate_rad_s;
-      // Fresh from an edge with a chain in tow: do not swing back toward it.
-      if (edge_remembered() && w * wrap_pi(edge_psi_rad_ - psi_rad_) > 0.0f) w = 0.0f;
+      // Fresh from an edge with a chain in tow: swing the other way, not back toward it.
+      if (edge_remembered() && w * wrap_pi(edge_psi_rad_ - psi_rad_) > 0.0f) {
+        avoid_dir_ = -avoid_dir_;
+        w = -w;
+      }
     } else {
       phase_ = CATENA_WANDER_CRUISE;
       retarget_in_s_ -= dt_s;
