@@ -51,7 +51,7 @@ test-full: core
 	CATENA_FULL=1 $(PY) -m pytest -q
 
 lint: $(STAMP)
-	$(PY) -m ruff check sim tests
+	$(PY) -m ruff check sim tests cad
 
 sim: core
 	$(PY) -m sim.runner $(S) --seed $(SEED) --viewer $(ARGS)
