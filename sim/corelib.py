@@ -20,9 +20,11 @@ BROADCAST = 0xFF
 NONE = 0xFF
 FRAME_FLASH = 1
 STATE_WANDER, STATE_SEEK, STATE_DOCK, STATE_FOLLOW, STATE_SHAPE, STATE_MOVE = 1, 2, 3, 4, 5, 6
+STATE_LASSO = 7
 STROKE_POINTS = 32
 
-STATE_NAMES = {1: "WANDER", 2: "SEEK", 3: "DOCK", 4: "FOLLOW", 5: "SHAPE", 6: "MOVE"}
+STATE_NAMES = {1: "WANDER", 2: "SEEK", 3: "DOCK", 4: "FOLLOW", 5: "SHAPE", 6: "MOVE",
+               7: "LASSO"}
 WANDER_DETAIL = {0: "cruise", 1: "avoid", 2: "backoff", 3: "turn", 4: "hold"}
 
 u8, u32, i32, f32 = ctypes.c_uint8, ctypes.c_uint32, ctypes.c_int32, ctypes.c_float

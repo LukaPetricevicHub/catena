@@ -35,9 +35,11 @@
                                     acceptance zone, int8, 127 = pi, counter-clockwise seen from above] */
 #define CATENA_FRAME_LINK_NAK 6u /* hub robot to the robot on its hub: back out (same chain) */
 #define CATENA_FRAME_SHAPE 7u    /* between linked robots, one per step: [type, shape version,
-                                    flags (1 closed, 2 active, bits 4-5 chunk number), twist
-                                    sequence, vx, vy (int8 mm/s), wz (int8, 0.01 rad/s), edge push
-                                    x, y (int8 mm/s, shape frame), then 8 stroke points (x, y)] */
+                                    flags (1 closed, 2 active, 4 lasso, bits 4-5 chunk number),
+                                    twist sequence, vx, vy (int8 mm/s), wz (int8, 0.01 rad/s),
+                                    edge push x, y (int8 mm/s, shape frame), lasso progress (how
+                                    far the head has gone round, in eighths of a pitch), then
+                                    8 stroke points (x, y)] */
 #define CATENA_FRAME_CLOSE 8u    /* head and tail of a closed ring, every step: [type, turning
                                     error (int16), tongue direction (from the head) or hall
                                     reading (from the tail) (int16), chain id] */
@@ -57,6 +59,7 @@
 #define CATENA_STATE_FOLLOW 4u
 #define CATENA_STATE_SHAPE 5u  /* holding the drawn shape */
 #define CATENA_STATE_MOVE 6u   /* shape plus twist */
+#define CATENA_STATE_LASSO 7u  /* the head circling an object (spec 7.6) */
 /* debug.detail codes while holding a shape. */
 #define CATENA_SHAPE_HOLD 0u
 #define CATENA_SHAPE_CLOSING 1u /* the head docks onto its own tail */

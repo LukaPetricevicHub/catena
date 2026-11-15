@@ -63,6 +63,8 @@ sensing:
   ir_range_sigma_frac: 0.10
   ir_reference_range: 100.0   # calibration: a receiver facing the sender reads 1.0 at this range
   flash_filter_gain: 0.5      # weight of a new flash measurement in a tracked neighbour position
+  object_mask_margin: 25.0    # deg beyond a receiver's 90 deg lobe within which a neighbour still spoils it (bearing noise)
+  object_confirm: 3           # reflections in a row before an object counts
   object_range: 110.0         # gap at which a 40 mm white ball is still detected; assumed, measure it
   edge_sensors: 2             # downward, front-left and front-right
   edge_sensor_xy: [30.0, 15.0]  # spot of the left sensor in the base frame; right is mirrored; assumed
@@ -138,6 +140,10 @@ behaviour:
     twist_ramp: 2.0           # s from rest to the commanded speed, while the bases turn into the motion
     twist_catchup: 1.0        # 1/s; a robot behind on the commanded travel adds this share of the distance owed
     twist_max_rate: 20.0      # deg/s, rotate slider at full deflection
+  lasso:                      # spec 7.6; values assumed, tuned in simulation
+    speed: 30.0               # mm/s of the head while it circles the object
+    min_robots: 8             # a shorter chain does not try to close a ring round an object
+    radius_gain: 1.5          # rad of steering toward the circle per unit of relative radius error
   recover:                    # spec 7.8; values assumed, tuned in simulation
     search: 3.0               # s an end that lost its neighbour waits for the other end to show up
     limit: 30.0               # s after which the two ends stop waiting for each other in any case

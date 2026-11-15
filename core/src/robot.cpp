@@ -110,7 +110,11 @@ void Robot::step(Hal& hal) {
   push_out_x_ = push_out_y_ = 0.0f;
   has_turn_ = false;
   e_self_ = kUnknown;  // what my neighbours hear unless I hold the shape
-  if (shape_ready() && !orphan_head()) {
+  if (lasso_active_ && (shape_version_ != lasso_version_ || chain_.ahead() != CATENA_NONE ||
+                        !towing())) {
+    lasso_active_ = false;  // another shape arrived, or the chain changed under me
+  }
+  if (shape_ready() && !orphan_head() && !lasso_active_) {
     shape(hal, dt_s);
   } else if (chain_.ahead() != CATENA_NONE) {
     follow(hal);
@@ -313,7 +317,7 @@ void Robot::receive(Hal& hal) {
           aft_us_ = now_us_;
         }
       }
-    } else if (type == CATENA_FRAME_SHAPE && rx.len >= 9) {
+    } else if (type == CATENA_FRAME_SHAPE && rx.len >= 10) {
       shape_frame(rx);
     } else if (type == CATENA_FRAME_GUIDE && rx.len >= 2) {
       n->guide_rad = static_cast<float>(static_cast<int8_t>(rx.data[1])) / 127.0f * kPi;
@@ -334,24 +338,31 @@ void Robot::sense_object(const float* reflect) {
   for (int k = 0; k < CATENA_IR_COUNT; ++k) {
     usable[k] = true;
     for (const Neighbour& n : neighbours_) {
-      if (fresh(n) && std::fabs(wrap_pi(bearing_of(n) - receiver_angle_rad(k))) < 0.5f * kPi + 0.26f) {
+      if (fresh(n) && std::fabs(wrap_pi(bearing_of(n) - receiver_angle_rad(k))) <
+                          0.5f * kPi + p_.object_mask_margin_rad) {
         usable[k] = false;
       }
     }
   }
   ObjectFix fix;
-  if (!estimate_object(reflect, usable, p_.object_range_mm, &fix)) return;
+  if (!estimate_object(reflect, usable, p_.object_range_mm, &fix)) {
+    object_hits_ = 0;
+    return;
+  }
+  ++object_hits_;
   const float range = fix.gap_mm + p_.base_radius_mm + p_.object_radius_mm;
   const float x = range * std::cos(fix.bearing_rad);
   const float y = range * std::sin(fix.bearing_rad);
-  const float gain = object_known() ? p_.flash_filter_gain : 1.0f;
+  const float gain = object_hits_ > 1 ? p_.flash_filter_gain : 1.0f;
   object_x_mm_ += gain * (x - object_x_mm_);
   object_y_mm_ += gain * (y - object_y_mm_);
   object_seen_us_ = now_us_;
 }
 
 bool Robot::object_known() const {
-  return object_seen_us_ != 0 && now_us_ - object_seen_us_ <= to_us(p_.seek_memory_s);
+  // One reflection can be a neighbour's, leaking past the mask: it takes several in a row.
+  return static_cast<float>(object_hits_) >= p_.object_confirm && object_seen_us_ != 0 &&
+         now_us_ - object_seen_us_ <= to_us(p_.seek_memory_s);
 }
 
 // My tongue can be on this robot's hub: it is close, and I was driving onto it or my
@@ -576,12 +587,13 @@ uint8_t Robot::aft() const {
   return chain_.ahead() != CATENA_NONE ? closure_ : CATENA_NONE;
 }
 
-void Robot::set_shape(const uint8_t* xy, bool closed, bool active) {
+void Robot::set_shape(const uint8_t* xy, bool closed, bool active, bool lasso) {
   for (int k = 0; k < 2 * kStrokePoints; ++k) stroke_.xy[k] = xy[k];
   ++shape_version_;
   if (shape_version_ == 0) shape_version_ = 1;
-  shape_flags_ = static_cast<uint8_t>((closed ? 1 : 0) | (active ? 2 : 0));
+  shape_flags_ = static_cast<uint8_t>((closed ? 1 : 0) | (active ? 2 : 0) | (lasso ? 4 : 0));
   chunks_ = 0x0F;
+  lasso_progress_ = 0;
 }
 
 void Robot::set_twist(float vx_mm_s, float vy_mm_s, float wz_rad_s) {
@@ -597,13 +609,15 @@ void Robot::shape_frame(const catena_rx_t& rx) {
   if (version == 0) return;
   if (shape_version_ == 0 || newer(version, shape_version_)) {
     shape_version_ = version;
-    shape_flags_ = rx.data[2] & 3;
+    shape_flags_ = rx.data[2] & 7;
     chunks_ = 0;
+    lasso_progress_ = 0;
   }
   if (version != shape_version_) return;
-  if (rx.len >= 9 + 16) {
+  if (rx.data[9] > lasso_progress_) lasso_progress_ = rx.data[9];
+  if (rx.len >= 10 + 16) {
     const int chunk = (rx.data[2] >> 4) & 3;
-    for (int k = 0; k < 16; ++k) stroke_.xy[16 * chunk + k] = rx.data[9 + k];
+    for (int k = 0; k < 16; ++k) stroke_.xy[16 * chunk + k] = rx.data[10 + k];
     chunks_ |= static_cast<uint8_t>(1u << chunk);
   }
   if (newer(rx.data[3], twist_seq_)) {
@@ -628,7 +642,7 @@ void Robot::shape_gossip(Hal& hal) {
   const uint8_t to = gossip_count_ & 1 ? fore() : aft();
   if (to == CATENA_NONE) return;
   const int chunk = (gossip_count_ >> 1) & 3;
-  uint8_t frame[9 + 16];
+  uint8_t frame[10 + 16];
   frame[0] = CATENA_FRAME_SHAPE;
   frame[1] = shape_version_;
   frame[2] = static_cast<uint8_t>(shape_flags_ | (chunk << 4));
@@ -636,9 +650,10 @@ void Robot::shape_gossip(Hal& hal) {
   for (int k = 0; k < 3; ++k) frame[4 + k] = static_cast<uint8_t>(twist_[k]);
   frame[7] = static_cast<uint8_t>(static_cast<int8_t>(clampf(push_out_x_, -127.0f, 127.0f)));
   frame[8] = static_cast<uint8_t>(static_cast<int8_t>(clampf(push_out_y_, -127.0f, 127.0f)));
+  frame[9] = lasso_progress_;
   const bool have = (chunks_ >> chunk) & 1;
-  for (int k = 0; k < 16; ++k) frame[9 + k] = stroke_.xy[16 * chunk + k];
-  hal.send(to, frame, have ? sizeof frame : 9);
+  for (int k = 0; k < 16; ++k) frame[10 + k] = stroke_.xy[16 * chunk + k];
+  hal.send(to, frame, have ? sizeof frame : 10);
 }
 
 // True while this robot holds a shape: an active stroke has arrived in full and the chain
@@ -682,6 +697,16 @@ void Robot::shape(Hal& hal, float dt_s) {
   if (chain_.ahead() != CATENA_NONE && unknown(e_fore)) {
     // The robot ahead does not hold the shape yet (the stroke has not reached it, or it
     // cannot measure its angle): keep following it. The shape takes hold from the head.
+    follow(hal);
+    return;
+  }
+  const bool in_lasso = (shape_flags_ & 4) != 0;
+  if (in_lasso && chain_.ahead() != CATENA_NONE &&
+      static_cast<float>(lasso_progress_) * p_.pitch_mm / 8.0f <
+          static_cast<float>(chain_.index()) * p_.pitch_mm) {
+    // Spec 7.6: I take up my ring angle only once I have reached the circle the head is
+    // drawing; until then I follow. Curling the whole chain at once would swing the tail
+    // through the object.
     follow(hal);
     return;
   }
@@ -784,14 +809,15 @@ void Robot::shape(Hal& hal, float dt_s) {
   // neighbours wait: a made-up zero would send them all off against each other.
   const bool blind = f != CATENA_NONE && aft_id_ != CATENA_NONE && !has_aft;
   if (blind) e_self_ = kUnknown;
-  const bool wait = blind || unknown(e_fore) || unknown(e_aft);
+  // In a lasso the robot behind me may still be following: I hold my angle without it.
+  const bool wait = blind || unknown(e_fore) || (unknown(e_aft) && !in_lasso);
   const float g = p_.shape_gain_per_s * p_.pitch_mm;
   float vx = 0.0f, vy = 0.0f;
   if (f != CATENA_NONE && !wait) {
     vx -= g * (e_fore - e_self_) * -uy;
     vy -= g * (e_fore - e_self_) * ux;
   }
-  if (has_aft && !wait) {
+  if (has_aft && !wait && !unknown(e_aft)) {
     vx -= g * (e_aft - e_self_) * -wy;
     vy -= g * (e_aft - e_self_) * wx;
   }
@@ -888,10 +914,19 @@ void Robot::lead(Hal& hal, float dt_s) {
   target_ = CATENA_NONE;
   holding_ = false;
   const bool at_edge = !hal.table_left() || !hal.table_right();
+  if (at_edge && lasso_active_) {
+    // The circle runs off the table: give the ring up and go back to following.
+    set_shape(stroke_.xy, true, false, false);
+    lasso_active_ = false;
+  }
   if (at_edge || phase_ == CATENA_WANDER_BACKOFF || phase_ == CATENA_WANDER_TURN) {
     state_ = CATENA_STATE_WANDER;  // edge avoidance overrides seeking and docking
     goal_ = CATENA_NONE;
     wander(hal, dt_s);
+    return;
+  }
+  if (lasso_active_) {
+    lasso(hal, dt_s);
     return;
   }
   if (hold_here_ || chain_.hold_behind()) {
@@ -924,6 +959,11 @@ void Robot::lead(Hal& hal, float dt_s) {
     return;
   }
   const Neighbour* goal = pick_goal();
+  if (!goal && lasso_possible()) {
+    lasso_start();
+    lasso(hal, dt_s);
+    return;
+  }
   if (!goal) {
     state_ = CATENA_STATE_WANDER;
     goal_ = CATENA_NONE;
@@ -931,6 +971,62 @@ void Robot::lead(Hal& hal, float dt_s) {
     return;
   }
   seek(hal, *goal, dt_s);
+}
+
+// -- LASSO (spec 7.6) -----------------------------------------------------------------------
+
+// A wandering head with a long enough chain, no shape to hold, and an object in sight.
+bool Robot::lasso_possible() const {
+  return towing() && static_cast<float>(chain_.size()) >= p_.lasso_min_robots &&
+         !(shape_version_ != 0 && (shape_flags_ & 2)) && object_known();
+}
+
+// Announce a ring for my chain, to be taken up robot by robot as I draw the circle.
+void Robot::lasso_start() {
+  uint8_t ring[2 * kStrokePoints];
+  for (int k = 0; k < kStrokePoints; ++k) {
+    const float a = 2.0f * kPi * static_cast<float>(k) / kStrokePoints;
+    ring[2 * k] = static_cast<uint8_t>(std::lround(128.0f + 100.0f * std::cos(a)));
+    ring[2 * k + 1] = static_cast<uint8_t>(std::lround(128.0f + 100.0f * std::sin(a)));
+  }
+  set_shape(ring, true, true, true);
+  lasso_active_ = true;
+  lasso_version_ = shape_version_;
+  lasso_radius_mm_ = p_.pitch_mm / (2.0f * std::sin(kPi / static_cast<float>(chain_.size())));
+  lasso_driven_mm_ = 0.0f;
+  lasso_on_circle_ = false;
+}
+
+// The head drives a circle of the ring's radius round the object, clockwise, so that the
+// chain behind it lies counter-clockwise as the ring stroke has it. The object is where I
+// last saw it, carried along by gyro and my own travel; on the circle it is too far to the
+// side to be seen again.
+void Robot::lasso(Hal& hal, float dt_s) {
+  state_ = CATENA_STATE_LASSO;
+  holding_ = false;
+  goal_ = target_ = CATENA_NONE;
+  e_self_ = 0.0f;  // I am an end of the shape: the robot behind me may hold its angle
+  const float range = std::hypot(object_x_mm_, object_y_mm_);
+  const float bearing = std::atan2(object_y_mm_, object_x_mm_);
+  const float off = (range - lasso_radius_mm_) / lasso_radius_mm_;
+  const float want = -0.5f * kPi + clampf(p_.lasso_radius_gain * off, -1.0f, 1.0f);
+  const float error = wrap_pi(bearing - want);
+  if (!lasso_on_circle_ && std::fabs(off) < 0.15f && std::fabs(error) < 0.5f) {
+    lasso_on_circle_ = true;
+  }
+  const float keep = lead_speed_mm_s() / p_.follow_lead_speed_mm_s;  // slack along the chain
+  const float forward = clampf(std::cos(error), 0.0f, 1.0f);
+  const float v = p_.lasso_speed_mm_s * keep * forward * forward;
+  if (lasso_on_circle_) lasso_driven_mm_ += v * dt_s;
+  lasso_progress_ = static_cast<uint8_t>(clampf(lasso_driven_mm_ * 8.0f / p_.pitch_mm, 0.0f, 255.0f));
+  drive(hal, v, clampf(p_.seek_turn_gain_per_s * error, -p_.wander_spin_rate_rad_s,
+                       p_.wander_spin_rate_rad_s));
+  // All but the last stretch drawn: from here it is a plain closed ring, and holding it
+  // brings my tail in front of me to dock onto.
+  if (lasso_driven_mm_ >= (static_cast<float>(chain_.size()) - 1.5f) * p_.pitch_mm) {
+    set_shape(stroke_.xy, true, true, false);
+    lasso_active_ = false;
+  }
 }
 
 // The nearest robot of a higher-ranked chain, moved along that chain towards its tail as

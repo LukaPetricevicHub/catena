@@ -41,7 +41,7 @@ class Robot {
   Robot(uint8_t id, const catena_params_t& params);
   void step(Hal& hal);
   // The phone's commands, injected at this robot (spec 10).
-  void set_shape(const uint8_t* xy, bool closed, bool active);
+  void set_shape(const uint8_t* xy, bool closed, bool active, bool lasso = false);
   void set_twist(float vx_mm_s, float vy_mm_s, float wz_rad_s);
 
   uint8_t wander_phase() const { return phase_; }
@@ -56,6 +56,9 @@ class Robot {
   void announce(Hal& hal);
   void lead(Hal& hal, float dt_s);
   void follow(Hal& hal);
+  bool lasso_possible() const;
+  void lasso_start();
+  void lasso(Hal& hal, float dt_s);
   void shape(Hal& hal, float dt_s);
   void shape_drive(Hal& hal, float vx_mm_s, float vy_mm_s, bool forward_ok);
   void shape_frame(const catena_rx_t& rx);
@@ -108,6 +111,7 @@ class Robot {
   float object_x_mm_ = 0.0f;      // an object seen by reflection, base frame, dead reckoned
   float object_y_mm_ = 0.0f;
   uint64_t object_seen_us_ = 0;   // 0: none yet
+  int object_hits_ = 0;           // reflections in a row that showed it
   // Link layer.
   uint8_t req_id_ = CATENA_NONE;  // who asked to link, and what hangs behind it
   uint8_t req_chain_ = 0;
@@ -173,6 +177,13 @@ class Robot {
   float push_out_x_ = 0.0f;
   float push_out_y_ = 0.0f;
   float ramp_ = 0.0f;             // 0..1, share of the commanded travel speed in use
+  // Lasso (spec 7.6).
+  bool lasso_active_ = false;     // I am the head and circling an object
+  uint8_t lasso_version_ = 0;     // the shape version I announced for it
+  float lasso_radius_mm_ = 0.0f;
+  float lasso_driven_mm_ = 0.0f;  // along the circle
+  bool lasso_on_circle_ = false;
+  uint8_t lasso_progress_ = 0;    // the head's progress as heard, eighths of a pitch
   uint64_t orphan_tail_until_us_ = 0;
   uint64_t orphan_tail_limit_us_ = 0;
   uint64_t orphan_head_until_us_ = 0;
