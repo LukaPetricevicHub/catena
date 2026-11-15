@@ -4,7 +4,8 @@ Updated at the end of every session. Newest entry on top.
 
 ## 14 Nov 2026: M3 shapes, moving and phone page: acceptance lines met in simulation
 
-Branch `m3-shapes` (not pushed, not merged; CI has not run on it).
+Branch `m3-shapes`, merged into `main` on 15 Nov 2026; CI green on Ubuntu and macOS (`make test`,
+`make lint`).
 
 Done
 - core: `core/src/shape.{h,cpp}` (stroke to polygon and turning angles); in the robot the
@@ -64,8 +65,7 @@ Open problems
   things not modelled, all parameters tuned in simulation only.
 
 Next
-- Push `m3-shapes`, let CI run, merge.
-- Then M4 Lasso and heal (spec 7.6, 7.8).
+- M4 Lasso and heal (spec 7.6, 7.8). M3 is closed.
 
 ## 12 Nov 2026 (later): M2 acceptance lines all met in simulation (48 of 50 seeds)
 
