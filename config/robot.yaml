@@ -168,4 +168,6 @@ sim:                          # 2D simulator model, not robot hardware
   contact_friction: 0.3       # plate on plate and base on base
   ring_damping_ratio: 0.5     # bearing friction of a free ring, as a fraction of critical damping
   link_seat_speed: 100.0      # mm/s; fastest a new link pulls a tip into line with the hub
+  ball_rolling_decel: 80.0    # mm/s^2; a table-tennis ball rolling on a table top slows by about this
+  ball_elasticity: 0.3        # bounce of the ball off a robot base
   start_spacing: 110.0        # mm; random starts keep centres at least this far apart

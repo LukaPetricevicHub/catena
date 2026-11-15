@@ -2,13 +2,17 @@
 
     python -m sim.runner heal --seed 4 --viewer
 
+    python -m sim.runner heal:ball --seed 4 --viewer    a ring holding a ball
+
 The chain takes one of the four shapes (by seed). In some seeds it is also moving when it
-happens. At a random time a random robot is removed. Passes if, 60 s later, the remaining
+happens. At a random time a random robot is removed. In the `ball` variant the chain is a
+ring that has closed round a ball, and the ball must still be inside it at the end. Passes if, 60 s later, the remaining
 robots are one chain again, agree on index and count, and are within the limit of the
 shape drawn for their new number; nothing fell and no other link was lost for good."""
 
 from __future__ import annotations
 
+import math
 import random
 from typing import Any
 
@@ -21,6 +25,7 @@ from sim.swarm import Swarm
 HEAL_LIMIT_S = 60.0
 ERROR_LIMIT_MM = 15.0
 REMOVE_WINDOW_S = (8.0, 50.0)  # after the stroke: while the shape forms or is held
+BALL_REMOVE_WINDOW_S = (35.0, 50.0)  # the ring round the ball is closed by then
 MOVE_SPEED_MM_S = 12.0
 MOVE_S = 10.0
 DURATION_S = shape_scenario.HOLD_LIMIT_S + shape_scenario.LEAD_IN_S + REMOVE_WINDOW_S[1] \
@@ -28,13 +33,15 @@ DURATION_S = shape_scenario.HOLD_LIMIT_S + shape_scenario.LEAD_IN_S + REMOVE_WIN
 
 
 class Monitor:
-    def __init__(self, swarm: Swarm, stroke: shapes.Stroke, rng: random.Random) -> None:
+    def __init__(self, swarm: Swarm, stroke: shapes.Stroke, rng: random.Random,
+                 ball: bool = False) -> None:
         self.stroke = stroke
         count = len(swarm.world.robots)
         self.start_s = swarm.world.time_s + shape_scenario.LEAD_IN_S
-        self.remove_s = self.start_s + rng.uniform(*REMOVE_WINDOW_S)
+        window = BALL_REMOVE_WINDOW_S if ball else REMOVE_WINDOW_S
+        self.remove_s = self.start_s + rng.uniform(*window)
         self.victim = rng.randrange(count)
-        self.moving = rng.random() < 0.3  # removed during MOVE instead of SHAPE
+        self.moving = not ball and rng.random() < 0.3  # removed during MOVE instead of SHAPE
         self.injected = rng.randrange(count)
         self.sent = self.twisting = self.removed = False
         self.state_at_removal: int | None = None
@@ -89,12 +96,39 @@ class Monitor:
         return self.injected if self.injected in alive else alive[0]
 
 
-def build(cfg: dict[str, Any], seed: int) -> Swarm:
+def ball_inside(swarm: Swarm, chain: list[int] | None) -> bool:
+    """The ball lies inside the polygon of the robots, taken in chain order."""
+    balls = [b for b in swarm.world.balls if not b.fallen]
+    if not balls or chain is None:
+        return False
+    bx, by = balls[0].position
+    pts = [swarm.world.robots[i].position for i in chain]
+    inside = False
+    for (x1, y1), (x2, y2) in zip(pts, pts[1:] + pts[:1], strict=False):  # ray casting
+        if (y1 > by) != (y2 > by) and bx < x1 + (by - y1) * (x2 - x1) / (y2 - y1):
+            inside = not inside
+    return inside
+
+
+def build(cfg: dict[str, Any], seed: int, variant: str = "") -> Swarm:
     rng = random.Random(seed * 7919 + 31)
-    name = ("line", "ring", "u", "s")[seed % 4]
-    swarm = shape_scenario.build(cfg, seed, name)
-    swarm.on_tick.remove(swarm.monitor)  # same start as the shape scenario, another script
-    swarm.monitor = Monitor(swarm, shapes.named(name), rng)
+    if variant == "ball":
+        # An open arc a little wider than the ring, with the ball at its centre.
+        swarm = Swarm(cfg, seed)
+        direction = math.radians(rng.uniform(-180.0, 180.0))
+        directions = []
+        for _ in range(cfg["swarm"]["design_count"] - 1):
+            directions.append(direction)
+            direction += math.radians(rng.uniform(22.0, 28.0))
+        centre = (rng.uniform(-150.0, 150.0), rng.uniform(-60.0, 60.0))
+        shape_scenario.linked_chain(swarm, centre, directions)
+        swarm.world.add_ball(*centre)
+        name = "ring"
+    else:
+        name = ("line", "ring", "u", "s")[seed % 4]
+        swarm = shape_scenario.build(cfg, seed, name)
+        swarm.on_tick.remove(swarm.monitor)  # same start as the shape scenario, another script
+    swarm.monitor = Monitor(swarm, shapes.named(name), rng, ball=variant == "ball")
     swarm.on_tick.append(swarm.monitor)
     return swarm
 
@@ -106,17 +140,18 @@ def evaluate(swarm: Swarm) -> tuple[bool, dict[str, Any]]:
                if d is not None) and all(r.ahead is not None for r in swarm.alive())
     unlinks = sum(1 for e in swarm.world.events if e.kind == "unlink" and e.time_s > 0.01)
     metrics = {
-        "shape": ("line", "ring", "u", "s")[swarm.seed % 4],
+        "shape": "ring" if swarm.world.balls else ("line", "ring", "u", "s")[swarm.seed % 4],
         "removed": mon.victim,
         "removed_at_s": round(mon.remove_s - mon.start_s, 1),
         "state_at_removal": corelib.STATE_NAMES.get(mon.state_at_removal or 0, "?"),
         "healed_s": None if mon.healed_s is None else round(mon.healed_s, 2),
         "error_mm": None if error is None else round(error, 2),
         "closed": ring,
+        "ball_inside": ball_inside(swarm, mon.chain(swarm)) if swarm.world.balls else None,
         "falls": swarm.falls(),
         "unlinks": unlinks,
         "min_edge_mm": round(swarm.min_edge_mm, 1),
     }
     passed = (error is not None and error < ERROR_LIMIT_MM and metrics["falls"] == 0
-              and ring == mon.stroke.closed)
+              and ring == mon.stroke.closed and metrics["ball_inside"] is not False)
     return passed, metrics

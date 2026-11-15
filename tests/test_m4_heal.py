@@ -17,6 +17,11 @@ def results():
     return run_seeds("heal", SEEDS)
 
 
+@pytest.fixture(scope="module")
+def ball_results():
+    return run_seeds("heal:ball", SEEDS)
+
+
 def summary(results) -> str:
     passed = sum(r["passed"] for r in results)
     lines = [f"{passed} of {len(results)} seeds healed"]
@@ -36,3 +41,14 @@ def test_robots_are_removed_while_holding_a_shape_and_while_moving(results):
 
 def test_no_robot_falls_while_the_chain_heals(results):
     assert sum(r["metrics"]["falls"] for r in results) == 0, summary(results)
+
+
+def test_a_ring_holding_a_ball_heals_and_keeps_the_ball_in_four_of_five_runs(ball_results):
+    passed = [r for r in ball_results if r["passed"]]
+    assert len(passed) >= REQUIRED_FRACTION * len(ball_results), summary(ball_results)
+    for r in passed:
+        assert r["metrics"]["ball_inside"] and r["metrics"]["closed"]
+
+
+def test_no_robot_falls_while_a_ring_with_a_ball_heals(ball_results):
+    assert sum(r["metrics"]["falls"] for r in ball_results) == 0, summary(ball_results)

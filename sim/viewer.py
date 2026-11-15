@@ -35,6 +35,7 @@ HUB = (170, 180, 181)
 LINK = (230, 120, 40)
 TEXT = (24, 33, 31)
 TARGET = (120, 110, 200)  # the drawn shape
+BALL = (238, 132, 32)
 
 
 class Viewer:
@@ -115,6 +116,10 @@ class Viewer:
             pygame.draw.line(self.screen, LINK, self.px(*link.tongue.position),
                              self.px(*link.hub.position), max(2, round(6 * s)))
         self.draw_target()
+        for ball in world.balls:
+            if not ball.fallen:
+                pygame.draw.circle(self.screen, BALL, self.px(*ball.position),
+                                   max(2, round(ball.radius * s)))
         for r in world.robots:
             if not r.fallen:
                 self.draw_robot(r)
