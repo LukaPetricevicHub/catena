@@ -4,8 +4,8 @@ Updated at the end of every session. Newest entry on top.
 
 ## 15 Nov 2026 (later): M5 CAD v0 and coupons: all `make cad` checks pass; nothing printed
 
-Branch `m5-cad`; CI green on Ubuntu and macOS (run 43726703149: `make cad`, `make test`
-with 97 tests, `make lint`; CI does not run the 50-seed sets).
+Branch `m5-cad`, merged into `main` on 15 Nov 2026; CI green on Ubuntu and macOS (`make cad`,
+`make test` with 97 tests, `make lint`; CI does not run the 50-seed sets).
 
 Done
 - `cad/parts.py`: nine printed parts (chassis, lid, board carrier, skid, wheel hub, tyre,
