@@ -276,6 +276,16 @@ class World:
         link.hub.behind = None
         self.events.append(Event(self.time_s, "unlink", link.tongue.id, link.hub.id))
 
+    def remove(self, robot: Robot) -> None:
+        """A hand takes the robot off the table: its links go, and it is gone for good."""
+        for link in (robot.ahead, robot.behind):
+            if link:
+                self.unlink(link)
+        robot.fallen = True  # no longer simulated; it does not count as a fall
+        self.space.remove(*robot._space_items)
+        self._near = {k: v for k, v in self._near.items() if robot.id not in k}
+        self.events.append(Event(self.time_s, "removed", robot.id))
+
     def _fall(self, robot: Robot) -> None:
         for link in (robot.ahead, robot.behind):
             if link:
