@@ -62,5 +62,5 @@ cad:
 fw:
 	@echo "make fw: the firmware project arrives in milestone M7"; exit 1
 
-clips:
-	@echo "make clips: clips arrive in milestone M4"; exit 1
+clips: core
+	$(PY) -m sim.clips

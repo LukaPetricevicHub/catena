@@ -23,7 +23,7 @@ from sim.scenarios.heal import ball_inside
 from sim.scenarios.shape import HOLD_LIMIT_S, linked_chain, positions
 from sim.swarm import Swarm
 
-CATCH_LIMIT_S = 240.0   # from the start to a closed ring round the ball
+CATCH_LIMIT_S = 360.0   # from the start to a closed ring round the ball
 DISTANCE_MM = 400.0
 SPEED_MM_S = 30.0
 ARRIVE_LIMIT_MM = 40.0

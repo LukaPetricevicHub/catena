@@ -286,3 +286,49 @@ capped at the shape correction speed). The rotate rate has no such catch-up yet.
 robot the phone joined". Scenario names may carry a variant, `shape:ring`; `play` is a
 linked chain that waits for the phone. The server resamples the stroke again, so a page
 that sends raw points still works.
+
+## D42 Recovery: the two ends of a gap wait for each other, whatever their ranks (15 Nov 2026)
+
+A robot that loses `behind` while a shape is held becomes a tail, flags itself ORPHAN and its
+half stands still; one that loses `ahead` becomes a head and docks onto that tail (spec 7.8).
+Each waits `recover.search` for the other to show and goes on while it is in sight, at most
+`recover.limit`; then it holds the shape for its own count. Without the standstill the two
+halves each formed the shape for their own number and drifted apart.
+
+## D43 A ring that loses a robot turns its closing link into an ordinary link (15 Nov 2026)
+
+CLOSE frames carry the sender's chain id. When the two ends report different chains for
+`chain.link_timeout`, the head end takes the link as `ahead`, the tail end as `behind`: one
+open chain, which the closed shape closes again for the new count. The ends next to the gap
+see that they are in one chain and stop waiting.
+
+## D44 Objects: a reflection counts from strength 2.0, three times in a row, away from neighbours (15 Nov 2026)
+
+The simulator returns reflections from balls and from robots. A neighbour's reflection is
+about 100 times a ball's, and bearing noise leaks it into the next receiver: receivers
+within 115 deg of any neighbour seen in the last 2 s are left out. Robots too far to be
+known by their flash still reflect about 0.5 each and two or three add up, so the threshold
+is 2.0 (a ball within about 134 mm, centre to centre) instead of 1.0 at `object_range`.
+
+## D45 The lasso circle is driven at fixed curvature by gyro, from a fix taken standing still (15 Nov 2026)
+
+The head stops, sweeps its base until two receivers see the object, and takes the median of
+five fixes. It turns the object square onto its right and drives a circle of the ring's
+radius clockwise at fixed curvature; progress is the angle turned by gyro. Steering on a
+dead-reckoned centre was tried first: the wheels slip sideways under the chain's pull and
+the centre walked off by 100 mm and more, which dragged robots over the table edge.
+
+## D46 Robots on the lasso circle follow with the tongue at half the ring angle (15 Nov 2026)
+
+Spec 7.6 has a robot take up its ring angle once it has reached the circle. Holding that
+angle with the shape rule (20 mm/s) made those robots drag on the head. They stay in FOLLOW
+with the tongue held half a turning angle inside the base heading, which keeps each on the
+circle of the robot ahead. The head reports its progress in the SHAPE frame; when all but
+1.5 pitches are drawn the ring becomes a plain closed shape and the head docks onto its tail.
+
+## D47 A head with a chain remembers where it met an edge (15 Nov 2026)
+
+It spent up to 85% of its time turning at an edge it crept along, and never found the ball.
+After an edge turn its heading keeps `wander.edge_clear` (80 deg) from where the edge was
+and it does not steer back toward it for `wander.edge_memory` (6 s). M2 forms faster with
+it (median 72 s, was 86 s). The lasso search is still a random walk; 360 s are allowed for it.

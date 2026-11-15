@@ -2,6 +2,60 @@
 
 Updated at the end of every session. Newest entry on top.
 
+## 15 Nov 2026: M4 lasso and heal: acceptance lines met in simulation (lasso 82%, thin margin)
+
+Branch `m4-lasso-heal` (pushed; see the end of this entry for CI and merge).
+
+Done
+- core: recovery after a lost link (D42, D43); object sensing from the reflection of a
+  robot's own pulse (`Hal::reflection`, `estimate_object`, D44); lasso (state `LASSO`, D45,
+  D46); a towing head's memory of the edge it met (D47). The debug output carries the
+  object a robot believes it sees.
+- sim: a ball (`World.add_ball`), robot removal (`World.remove`), the reflection model,
+  scenarios `heal`, `heal:ball`, `lasso`; `sim/clips.py` and `make clips`.
+- Clips committed: `docs/media/lasso.gif`, `docs/media/heal.gif` (seed 0 of each scenario).
+- Try it: `make sim S=lasso SEED=0`, `make sim S=heal SEED=4`, `make sim S=heal:ball`.
+
+Verified how (all simulated; nothing has run on hardware)
+- `make test`: 39 C++ test cases, 68 pytest tests pass (61 s). `make test-full`: 68 pass
+  (273 s; it was 113 s before the lasso runs). `make lint` clean.
+- Line 1, lasso, ball inside the closed ring and carried 400 mm in 80% of 50 seeds:
+  **41 of 50 (82%)**. The ball is ringed after a median of 119 s (longest 309 s; 360 s are
+  allowed, the milestone names no limit). The ring's centre arrives 2 to 36 mm from where
+  the twist should bring it (40 allowed); the ball itself travels 220 to 455 mm, since it
+  rolls inside the ring. No robot and no ball left the table. Of the 9 failures, in 5 the
+  head never came near the ball, in 4 the chain knocked the ball away or drew a ring that
+  did not close round it. As in M3, the script turns the ring toward free table first.
+- Line 2, heal, 80% of 50 seeds: **44 of 50 (88%)**: one chain again, index and count
+  right, under 15 mm of the shape for eleven within 60 s. Re-linked after a median of 4.9 s.
+  Shapes by seed (line, ring, U, S); 30% of the removals happen during `MOVE`.
+- Line 3, heal for a ring holding the ball: **50 of 50**, ring closed again, ball inside.
+- Line 4: `make clips` writes both GIFs; I looked at frames of the lasso clip.
+- Earlier milestones after these changes: M2 46 of 50 seeds (median 72 s); shapes 30 of 30
+  for all four; twist 20 of 20.
+
+Open problems
+- **The lasso margin is thin**: 41 where 40 are needed, and it leans on 360 s of random
+  search. A head that meets the ball from the side passes it (only the front receivers are
+  free of its own chain), and the chain behind sometimes knocks the ball away first.
+- **A robot dragged sideways or backward over an edge does not see it** (sensors at the
+  front only). Every fall in M3 and M4 work was of this kind; each trigger found was fixed
+  (wrong lasso centre, tongue offset sign, edge push), the cause was not. A third edge
+  sensor at the rear would close it. That is a hardware change, so it is yours to decide.
+- The 6 heal failures are removals during `MOVE` early in the run; not analysed further.
+- Reflection sensing is a model of my own (D44): strengths, the 2.0 threshold and the
+  mask are untested against real receivers. `sensing.object_range` is still "assumed".
+- The lasso's circle is open loop: nothing checks that the ball is inside before the ring
+  closes. A ring drawn beside the ball stays there.
+- No C++ unit tests for recovery, the closing link's conversion or the lasso; scenario
+  tests cover them. Object estimation has three.
+- `make test-full` now takes four and a half minutes.
+- Still true from below: the phone page has not been opened in a browser; shapes are slow
+  (20 mm/s); the gyro model (D37); parameters tuned in simulation only.
+
+Next
+- M5 CAD v0 and coupons (spec sections 3 and 11).
+
 ## 14 Nov 2026: M3 shapes, moving and phone page: acceptance lines met in simulation
 
 Branch `m3-shapes`, merged into `main` on 15 Nov 2026; CI green on Ubuntu and macOS (`make test`,
